@@ -1,0 +1,74 @@
+Database initialized: futu_quant
+2026-03-17 11:56:00,187 [INFO    ] scheduler — Scheduler configured — A-Share: 11:30, 14:50 | HK-Share: 11:30, 13:30, 15:50 (2H and Pre-close)
+2026-03-17 11:56:00,187 [INFO    ] scheduler — Press Ctrl+C to stop.
+2026-03-17 11:56:00,187 [INFO    ] scheduler — Running initial startup analysis for A & HK shares...
+2026-03-17 11:56:00,187 [INFO    ] scheduler — === A-Share Market Job Started ===
+Database initialized: futu_quant
+2026-03-17 11:56:00,196 [INFO    ] main — Trading bot started | filter: ['A_SHARE'].
+Connecting to FutuOpenD 127.0.0.1:11111
+2026-03-17 11:56:00,198 | 31871 | 8457941248 | [open_context_base.py:409] _init_connect_sync: New connect ready: conn=7439519885073551665(1) context=<futu.quote.open_quote_context.OpenQuoteContext object at 0x12cd93560>
+Connected to FutuOpenD Quote Context.
+
+--- Analyzing SZ.159915 (A_SHARE) for User 1 ---
+[FutuClient] SZ.159915: fetched 1438 candles (2024-09-13 → 2026-03-17)
+Chart generated for SZ.159915: output/charts/SZ_159915_20260317.png
+2026-03-17 11:56:01,482 [INFO    ] main — [SZ.159915] Signal: HOLD — 无明确可执行信号 (观望/持仓)
+Quote context closed.
+2026-03-17 11:56:01,485 [INFO    ] scheduler — === A-Share Market Job Finished ===
+2026-03-17 11:56:01,485 [INFO    ] scheduler — === HK-Share Market Job Started ===
+2026-03-17 11:56:01,485 | 31871 | 6133313536 | [open_context_base.py:516] on_disconnect: Disconnected: conn=0(1) reason=CallClose
+Database initialized: futu_quant
+2026-03-17 11:56:01,506 [INFO    ] main — Trading bot started | filter: ['HK_SHARE'].
+Connecting to FutuOpenD 127.0.0.1:11111
+2026-03-17 11:56:01,508 | 31871 | 8457941248 | [open_context_base.py:409] _init_connect_sync: New connect ready: conn=7439519890568705333(2) context=<futu.quote.open_quote_context.OpenQuoteContext object at 0x12d1f3020>
+Connected to FutuOpenD Quote Context.
+
+--- Analyzing HK.00700 (HK_SHARE) for User 1 ---
+[FutuClient] HK.00700: fetched 2192 candles (2024-09-13 → 2026-03-17)
+Chart generated for HK.00700: output/charts/HK_00700_20260317.png
+2026-03-17 11:56:02,524 [INFO    ] main — [HK.00700] Signal: HOLD — 无明确可执行信号 (观望/持仓)
+Quote context closed.
+2026-03-17 11:56:02,530 [INFO    ] scheduler — === HK-Share Market Job Finished ===
+2026-03-17 11:56:02,530 | 31871 | 6133313536 | [open_context_base.py:516] on_disconnect: Disconnected: conn=0(2) reason=CallClose
+2026-03-17 13:30:27,821 [INFO    ] scheduler — === HK-Share Market Job Started ===
+Database initialized: futu_quant
+2026-03-17 13:30:27,924 [INFO    ] main — Trading bot started | filter: ['HK_SHARE'].
+Connecting to FutuOpenD 127.0.0.1:11111
+2026-03-17 13:30:27,940 | 31871 | 8457941248 | [open_context_base.py:409] _init_connect_sync: New connect ready: conn=7439543657287075902(3) context=<futu.quote.open_quote_context.OpenQuoteContext object at 0x13c813200>
+Connected to FutuOpenD Quote Context.
+
+--- Analyzing HK.00700 (HK_SHARE) for User 1 ---
+[FutuClient] HK.00700: fetched 2193 candles (2024-09-13 → 2026-03-17)
+Chart generated for HK.00700: output/charts/HK_00700_20260317.png
+2026-03-17 13:30:29,478 [INFO    ] main — [HK.00700] Signal: HOLD — 无明确可执行信号 (观望/持仓)
+Quote context closed.
+2026-03-17 13:30:29,496 [INFO    ] scheduler — === HK-Share Market Job Finished ===
+2026-03-17 13:30:29,496 | 31871 | 6133313536 | [open_context_base.py:516] on_disconnect: Disconnected: conn=0(3) reason=CallClose
+2026-03-17 14:50:29,663 [INFO    ] scheduler — === A-Share Market Job Started ===
+Database initialized: futu_quant
+2026-03-17 14:50:29,687 [INFO    ] main — Trading bot started | filter: ['A_SHARE'].
+Connecting to FutuOpenD 127.0.0.1:11111
+2026-03-17 14:50:29,694 | 31871 | 8457941248 | [open_context_base.py:409] _init_connect_sync: New connect ready: conn=7439563797316890393(4) context=<futu.quote.open_quote_context.OpenQuoteContext object at 0x13c971370>
+Connected to FutuOpenD Quote Context.
+
+--- Analyzing SZ.159915 (A_SHARE) for User 1 ---
+[FutuClient] SZ.159915: fetched 1439 candles (2024-09-13 → 2026-03-17)
+Chart generated for SZ.159915: output/charts/SZ_159915_20260317.png
+2026-03-17 14:50:30,622 [INFO    ] main — [SZ.159915] Signal: HOLD — 无明确可执行信号 (观望/持仓)
+Quote context closed.
+2026-03-17 14:50:30,628 [INFO    ] scheduler — === A-Share Market Job Finished ===
+2026-03-17 14:50:30,628 | 31871 | 6133313536 | [open_context_base.py:516] on_disconnect: Disconnected: conn=0(4) reason=CallClose
+2026-03-17 15:50:30,810 [INFO    ] scheduler — === HK-Share Market Job Started ===
+Database initialized: futu_quant
+2026-03-17 15:50:30,974 [INFO    ] main — Trading bot started | filter: ['HK_SHARE'].
+Connecting to FutuOpenD 127.0.0.1:11111
+2026-03-17 15:50:31,010 | 31871 | 8457941248 | [open_context_base.py:409] _init_connect_sync: New connect ready: conn=7439578902247411846(5) context=<futu.quote.open_quote_context.OpenQuoteContext object at 0x13c6370b0>
+Connected to FutuOpenD Quote Context.
+
+--- Analyzing HK.00700 (HK_SHARE) for User 1 ---
+[FutuClient] HK.00700: fetched 2195 candles (2024-09-13 → 2026-03-17)
+Chart generated for HK.00700: output/charts/HK_00700_20260317.png
+2026-03-17 15:50:32,631 [INFO    ] main — [HK.00700] Signal: HOLD — 无明确可执行信号 (观望/持仓)
+Quote context closed.
+2026-03-17 15:50:32,703 [INFO    ] scheduler — === HK-Share Market Job Finished ===
+2026-03-17 15:50:32,703 | 31871 | 6133313536 | [open_context_base.py:516] on_disconnect: Disconnected: conn=0(5) reason=CallClose

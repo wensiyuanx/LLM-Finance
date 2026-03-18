@@ -1,0 +1,10 @@
+futu-api
+pandas
+pandas-ta
+sqlalchemy
+pymysql
+python-dotenv
+cryptography
+yfinance
+schedule
+mplfinance

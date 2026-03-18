@@ -1,0 +1,229 @@
+import pandas as pd
+from database.models import TradeAction
+from strategy.indicators import calculate_indicators
+
+def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_position: float = 0.0, avg_cost: float = 0.0, code: str = None) -> tuple[TradeAction, str]:
+    """
+    Analyzes K-line data using a Multi-Timeframe (MTF) approach.
+    Uses Daily data (df_day) to define the macro trend (Direction filter).
+    Uses Hourly data (df_60m) to trigger precise entries and exits.
+    """
+    if df_60m is None or df_60m.empty:
+        return TradeAction.HOLD, "无有效小时线数据"
+
+    # Calculate indicators for 60M
+    df_60m = calculate_indicators(df_60m)
+    
+    # Calculate indicators for Daily if provided
+    daily_trend_up = True # Default to True if no daily data
+    if df_day is not None and not df_day.empty:
+        df_day = calculate_indicators(df_day)
+        if len(df_day) > 0:
+            latest_day = df_day.iloc[-1]
+            daily_close = latest_day['close']
+            # Require Daily Close > Daily SMA 50 AND ADX > 20 for a valid macro uptrend
+            if 'SMA_50' in latest_day and pd.notna(latest_day['SMA_50']):
+                if daily_close < latest_day['SMA_50']:
+                    daily_trend_up = False
+            if 'ADX_14' in latest_day and pd.notna(latest_day['ADX_14']):
+                if latest_day['ADX_14'] < 20:
+                    daily_trend_up = False
+
+    # Slice AFTER computing indicators.
+    if len(df_60m) > 250:
+        df_60m = df_60m.iloc[-250:].copy()
+
+    # Needs enough rows for hourly indicators
+    if len(df_60m) < 30:
+        return TradeAction.HOLD, "小时线数据不足无法计算指标"
+
+    latest = df_60m.iloc[-1]
+    prev = df_60m.iloc[-2]
+    
+    current_price = latest['close']
+
+    # Risk Management: Dynamic Stop-Loss / Take-Profit via ATR
+    if current_position > 0 and avg_cost > 0:
+        profit_pct = (current_price - avg_cost) / avg_cost
+        
+        # 1. Fallback extreme stop loss/profit
+        if profit_pct <= -0.08:
+            return TradeAction.SELL, f"触发极度风控止损 (亏损 {profit_pct*100:.2f}%)"
+        elif profit_pct >= 0.15:
+            return TradeAction.SELL, f"触发极度风控止盈 (盈利 {profit_pct*100:.2f}%)"
+            
+        # 2. ATR Trailing Stop / Volatility Risk
+        if 'ATR_14' in latest and pd.notna(latest['ATR_14']):
+            atr = latest['ATR_14']
+            
+            # Stop loss at 2.5x ATR below average cost
+            if current_price <= (avg_cost - (2.5 * atr)):
+                return TradeAction.SELL, f"触发ATR动态止损 (当前低于成本2.5倍真实日波动)"
+                
+            # Take profit at 3x ATR above average cost
+            if current_price >= (avg_cost + (3 * atr)):
+                return TradeAction.SELL, f"触发ATR动态止盈 (当前高于成本3倍真实日波动)"
+    
+    # Trend Regime Filter (Hourly)
+    in_downtrend = False
+    in_strong_trend = False
+    
+    if 'SMA_50' in latest and pd.notna(latest['SMA_50']):
+        if current_price < latest['SMA_50']:
+            in_downtrend = True
+            
+    if 'ADX_14' in latest and pd.notna(latest['ADX_14']):
+        if latest['ADX_14'] > 20:
+            in_strong_trend = True
+
+    buy_signals = []
+    sell_signals = []
+
+    # BUY LOGIC (Only permitted if Daily Trend is UP)
+    if daily_trend_up:
+        # 1. Moving Average Crossover Logic (Hourly Golden Cross)
+        if 'SMA_5' in latest and 'SMA_20' in latest:
+            sma5_latest, sma20_latest = latest['SMA_5'], latest['SMA_20']
+            sma5_prev, sma20_prev = prev['SMA_5'], prev['SMA_20']
+
+            if pd.notna(sma5_latest) and pd.notna(sma20_latest):
+                if sma5_prev <= sma20_prev and sma5_latest > sma20_latest:
+                    # Require Volume Confirmation for Golden Crosses
+                    if 'volume' in latest and 'VOL_SMA_5' in latest and latest['volume'] > latest['VOL_SMA_5']:
+                        buy_signals.append("小时线均线金叉且放量")
+
+        # 2. RSI Logic (Hourly Oversold Dip Buying)
+        if 'RSI_14' in latest and pd.notna(latest['RSI_14']):
+            rsi = latest['RSI_14']
+            if rsi < 35: 
+                buy_signals.append(f"小时线RSI超卖({rsi:.1f})")
+
+        # 3. Bollinger Bands Logic (Hourly Lower Band Touch)
+        if 'BOLL_LOWER' in latest:
+            lower_band = latest['BOLL_LOWER']
+            if pd.notna(lower_band) and current_price <= lower_band:
+                buy_signals.append("触及小时线布林带下轨")
+
+    # SELL LOGIC (Can trigger regardless of daily trend to protect capital)
+    # 1. Moving Average Death Cross
+    if 'SMA_5' in latest and 'SMA_20' in latest:
+        sma5_latest, sma20_latest = latest['SMA_5'], latest['SMA_20']
+        sma5_prev, sma20_prev = prev['SMA_5'], prev['SMA_20']
+        if pd.notna(sma5_latest) and pd.notna(sma20_latest):
+            if sma5_prev >= sma20_prev and sma5_latest < sma20_latest:
+                sell_signals.append("小时线均线死叉")
+                
+    # 2. RSI Overbought
+    if 'RSI_14' in latest and pd.notna(latest['RSI_14']):
+        rsi = latest['RSI_14']
+        if rsi > 70 and not in_strong_trend:
+            sell_signals.append(f"小时线RSI超买({rsi:.1f})")
+            
+    # 3. Bollinger Bands Upper Band
+    if 'BOLL_UPPER' in latest:
+        upper_band = latest['BOLL_UPPER']
+        if pd.notna(upper_band) and current_price >= upper_band and not in_strong_trend:
+            sell_signals.append("触及小时线布林带上轨")
+
+    # Multi-Factor Consensus
+    # Buy: require >= 2 confirmative signals for higher win rate, or 1 if it's a strong breakout
+    score = 0.0
+    if 'RSI_14' in latest and pd.notna(latest['RSI_14']):
+        # Higher score for lower RSI (more oversold)
+        score = 100 - latest['RSI_14']
+        
+    if len(buy_signals) >= 2 and current_position == 0:
+        return TradeAction.BUY, "强买入信号: " + " + ".join(buy_signals), score
+    elif len(buy_signals) == 1 and current_position == 0:
+        if "均线金叉" in buy_signals[0] or "RSI超卖" in buy_signals[0]:
+            return TradeAction.BUY, "买入信号: " + buy_signals[0], score
+        return TradeAction.HOLD, f"弱买入信号(仅1个，继续观察): {buy_signals[0]}", 0.0
+
+    # Sell: require >= 2 signals
+    if len(sell_signals) >= 2 and current_position > 0:
+        return TradeAction.SELL, "强卖出信号: " + " + ".join(sell_signals), 0.0
+
+    # Single sell signal
+    if len(sell_signals) == 1 and current_position > 0:
+        # If the only sell signal is just RSI overbought, but we are in a strong trend, we might hold
+        if "均线死叉" in sell_signals[0] or "布林带上轨" in sell_signals[0]:
+            return TradeAction.SELL, f"卖出信号: {sell_signals[0]}", 0.0
+        return TradeAction.HOLD, f"弱卖出信号(仅1个，继续观察): {sell_signals[0]}", 0.0
+
+    return TradeAction.HOLD, "无明确可执行信号 (观望/持仓)", 0.0
+
+def generate_etf_signals(df_60m: pd.DataFrame, current_position: float = 0.0, avg_cost: float = 0.0, tranches_count: int = 0) -> tuple[TradeAction, str, float]:
+    """
+    ETF专属网格/均值回归策略：纯左侧建仓，越跌越买，反弹分批或整体止盈。
+    不需要判断大盘趋势。
+    Returns: (TradeAction, Reason, Score)
+    """
+    if df_60m is None or df_60m.empty:
+        return TradeAction.HOLD, "无有效小时线数据", 0.0
+
+    df_60m = calculate_indicators(df_60m)
+    
+    if len(df_60m) > 250:
+        df_60m = df_60m.iloc[-250:].copy()
+
+    if len(df_60m) < 30:
+        return TradeAction.HOLD, "小时线数据不足无法计算指标", 0.0
+
+    latest = df_60m.iloc[-1]
+    current_price = latest['close']
+    
+    score = 0.0
+    if 'RSI_14' in latest and pd.notna(latest['RSI_14']):
+        score = 100 - latest['RSI_14'] # More oversold = higher score
+
+    # ETF 参数设定
+    rsi_oversold = 25
+    boll_drop_pct = 0.02
+    grid_drop_pct = 0.03
+    take_profit_pct = 0.04
+    max_tranches = 4
+
+    # --- 1. 卖出逻辑 (网格整体止盈或碰上轨) ---
+    if current_position > 0 and avg_cost > 0:
+        profit_pct = (current_price - avg_cost) / avg_cost
+        
+        # 整体止盈 A：达到目标利润
+        if profit_pct >= take_profit_pct:
+            return TradeAction.SELL, f"达到网格整体止盈目标 (+{profit_pct*100:.1f}%)，全仓平仓", 0.0
+            
+        # 整体止盈 B：超跌反弹触及布林带上轨
+        if 'BOLL_UPPER' in latest:
+            upper_band = latest['BOLL_UPPER']
+            if pd.notna(upper_band) and current_price >= upper_band and profit_pct > 0.01:
+                return TradeAction.SELL, "超跌反弹触及布林上轨止盈，全仓平仓", 0.0
+                
+        # 注: 实盘暂不支持记住每笔买入的具体价位，因此先做整体止盈处理，或依赖平均成本判断
+
+    # --- 2. 买入逻辑 (左侧网格建仓) ---
+    if tranches_count < max_tranches:
+        # 首仓建仓
+        if current_position == 0:
+            if 'RSI_14' in latest and pd.notna(latest['RSI_14']):
+                if latest['RSI_14'] < rsi_oversold:
+                    return TradeAction.BUY, f"首仓: RSI极度超卖({latest['RSI_14']:.1f})", score
+                    
+            if 'BOLL_LOWER' in latest:
+                lower_band = latest['BOLL_LOWER']
+                if pd.notna(lower_band) and current_price <= lower_band * (1 - boll_drop_pct):
+                    # Slightly boost score if it breaks bollinger lower band heavily
+                    return TradeAction.BUY, "首仓: 跌破布林下轨2%", score + 10.0
+                    
+        # 网格加仓 (被套状态)
+        elif current_position > 0 and avg_cost > 0:
+            # 简化版：只要当前价格比平均成本跌幅超过 3% * 批次，就加仓。
+            # 这里 tranches_count 必须至少是 1（因为已经有持仓了），避免乘以 0 导致错误加仓
+            effective_tranches = max(1, tranches_count)
+            expected_drop = grid_drop_pct * effective_tranches 
+            drop_from_cost = (avg_cost - current_price) / avg_cost
+            
+            if drop_from_cost >= expected_drop:
+                # 额外加一个 RSI 超卖限制避免单边瀑布过快加仓
+                if 'RSI_14' in latest and pd.notna(latest['RSI_14']) and latest['RSI_14'] < 35:
+                    return TradeAction.BUY, f"网格加仓(第{effective_tranches+1}批): 距成本下跌 {drop_from_cost*100:.1f}%, 且RSI超卖", score + (drop_from_cost * 100)
+
+    return TradeAction.HOLD, "无ETF网格执行信号", 0.0

@@ -1,0 +1,49 @@
+2026-03-17 11:56:00,187 [INFO    ] scheduler — Scheduler configured — A-Share: 11:30, 14:50 | HK-Share: 11:30, 13:30, 15:50 (2H and Pre-close)
+2026-03-17 11:56:00,187 [INFO    ] scheduler — Press Ctrl+C to stop.
+2026-03-17 11:56:00,187 [INFO    ] scheduler — Running initial startup analysis for A & HK shares...
+2026-03-17 11:56:00,187 [INFO    ] scheduler — === A-Share Market Job Started ===
+2026-03-17 11:56:00,196 [INFO    ] main — Trading bot started | filter: ['A_SHARE'].
+2026-03-17 11:56:01,482 [INFO    ] main — [SZ.159915] Signal: HOLD — 无明确可执行信号 (观望/持仓)
+2026-03-17 11:56:01,485 [INFO    ] scheduler — === A-Share Market Job Finished ===
+2026-03-17 11:56:01,485 [INFO    ] scheduler — === HK-Share Market Job Started ===
+2026-03-17 11:56:01,506 [INFO    ] main — Trading bot started | filter: ['HK_SHARE'].
+2026-03-17 11:56:02,524 [INFO    ] main — [HK.00700] Signal: HOLD — 无明确可执行信号 (观望/持仓)
+2026-03-17 11:56:02,530 [INFO    ] scheduler — === HK-Share Market Job Finished ===
+2026-03-17 13:30:27,821 [INFO    ] scheduler — === HK-Share Market Job Started ===
+2026-03-17 13:30:27,924 [INFO    ] main — Trading bot started | filter: ['HK_SHARE'].
+2026-03-17 13:30:29,478 [INFO    ] main — [HK.00700] Signal: HOLD — 无明确可执行信号 (观望/持仓)
+2026-03-17 13:30:29,496 [INFO    ] scheduler — === HK-Share Market Job Finished ===
+2026-03-17 14:50:29,663 [INFO    ] scheduler — === A-Share Market Job Started ===
+2026-03-17 14:50:29,687 [INFO    ] main — Trading bot started | filter: ['A_SHARE'].
+2026-03-17 14:50:30,622 [INFO    ] main — [SZ.159915] Signal: HOLD — 无明确可执行信号 (观望/持仓)
+2026-03-17 14:50:30,628 [INFO    ] scheduler — === A-Share Market Job Finished ===
+2026-03-17 15:50:30,810 [INFO    ] scheduler — === HK-Share Market Job Started ===
+2026-03-17 15:50:30,974 [INFO    ] main — Trading bot started | filter: ['HK_SHARE'].
+2026-03-17 15:50:32,631 [INFO    ] main — [HK.00700] Signal: HOLD — 无明确可执行信号 (观望/持仓)
+2026-03-17 15:50:32,703 [INFO    ] scheduler — === HK-Share Market Job Finished ===
+2026-03-18 09:57:17,743 [INFO    ] scheduler — Scheduler configured — A-Share: 11:30, 14:50 | HK-Share: 11:30, 14:00, 15:50 (MTF Intraday)
+2026-03-18 09:57:17,743 [INFO    ] scheduler — Press Ctrl+C to stop.
+2026-03-18 09:57:17,743 [INFO    ] scheduler — Running initial startup analysis for A & HK shares...
+2026-03-18 09:57:17,743 [INFO    ] scheduler — === A-Share Market Job Started ===
+2026-03-18 09:57:17,749 [INFO    ] main — Trading bot started | filter: ['A_SHARE'].
+2026-03-18 09:57:17,757 [INFO    ] main — Fetching data concurrently for User 1 - A_SHARE...
+2026-03-18 09:57:19,320 [INFO    ] main — [SZ.159915] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0)
+2026-03-18 09:57:19,325 [INFO    ] scheduler — === A-Share Market Job Finished ===
+2026-03-18 09:57:19,325 [INFO    ] scheduler — === HK-Share Market Job Started ===
+2026-03-18 09:57:19,331 [INFO    ] main — Trading bot started | filter: ['HK_SHARE'].
+2026-03-18 09:57:19,335 [INFO    ] main — Fetching data concurrently for User 1 - HK_SHARE...
+2026-03-18 09:57:20,900 [INFO    ] main — [HK.00700] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0)
+2026-03-18 09:57:21,423 [INFO    ] main — [HK.07226] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0)
+2026-03-18 09:57:21,429 [INFO    ] scheduler — === HK-Share Market Job Finished ===
+2026-03-18 11:30:21,603 [INFO    ] scheduler — === A-Share Market Job Started ===
+2026-03-18 11:30:21,773 [INFO    ] main — Trading bot started | filter: ['A_SHARE'].
+2026-03-18 11:30:21,914 [INFO    ] main — Fetching data concurrently for User 1 - A_SHARE...
+2026-03-18 11:30:23,907 [INFO    ] main — [SZ.159915] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0)
+2026-03-18 11:30:24,357 [INFO    ] main — [SH.510300] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0)
+2026-03-18 11:30:24,359 [INFO    ] scheduler — === A-Share Market Job Finished ===
+2026-03-18 11:30:24,359 [INFO    ] scheduler — === HK-Share Market Job Started ===
+2026-03-18 11:30:24,364 [INFO    ] main — Trading bot started | filter: ['HK_SHARE'].
+2026-03-18 11:30:24,366 [INFO    ] main — Fetching data concurrently for User 1 - HK_SHARE...
+2026-03-18 11:30:26,077 [INFO    ] main — [HK.00700] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0)
+2026-03-18 11:30:26,573 [INFO    ] main — [HK.07226] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0)
+2026-03-18 11:30:26,579 [INFO    ] scheduler — === HK-Share Market Job Finished ===
