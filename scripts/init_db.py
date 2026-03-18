@@ -47,7 +47,6 @@ def seed_wallets(db):
     default_wallets = [
         {"market": MarketType.A_SHARE,  "balance": 10000.0, "currency": "CNY"},
         {"market": MarketType.HK_SHARE, "balance": 20000.0, "currency": "HKD"},
-        {"market": MarketType.US_SHARE, "balance": 500.0,   "currency": "USD"},
     ]
     for w in default_wallets:
         exists = db.query(UserWallet).filter(

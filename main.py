@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 from database.db import SessionLocal, init_db
 from database.models import KLineData, TradeAction, SignalRecord, UserWallet, Holding, MarketType, AssetMonitor
 from data.futu_client import FutuClient
-from data.yf_client import YFinanceClient
 from strategy.logic import generate_signals, generate_etf_signals
 from engine.executor import OrderExecutor
 from scripts.visualizer import generate_kline_chart
@@ -193,7 +192,7 @@ def run_trading_bot(market_filter=None):
     """
     market_filter: optional list of MarketType to limit which markets are processed.
     e.g. [MarketType.A_SHARE, MarketType.HK_SHARE] for the Asia session job,
-         [MarketType.US_SHARE] for the US session job, or None to run all markets.
+         or None to run all markets.
     """
     init_db()
     logger.info("Trading bot started%s.",
@@ -216,7 +215,6 @@ def run_trading_bot(market_filter=None):
         assets_query = db_session.query(AssetMonitor).filter(AssetMonitor.is_active == 1)
         if market_filter:
             assets_query = assets_query.filter(AssetMonitor.market_type.in_(market_filter))
-        assets_query = assets_query.filter(AssetMonitor.market_type != MarketType.US_SHARE)
         active_assets = assets_query.all()
         
         if not active_assets:
@@ -244,16 +242,6 @@ def run_trading_bot(market_filter=None):
                 if df_60m is not None:
                     df_60m = format_futu_df(df_60m)
             
-            # Fallback to yfinance if Futu fails
-            if df_day is None or df_day.empty:
-                logger.info(f"Futu failed for {asset.code}, trying yfinance...")
-                try:
-                    yf_code = asset.code.replace('SZ.', '').replace('SH.', '') + '.SZ' if 'SZ.' in asset.code else asset.code
-                    df_day = yf_client.get_historical_klines(yf_code, start_date=start_date, end_date=end_date, interval="1d")
-                    df_60m = yf_client.get_historical_klines(yf_code, start_date=start_date, end_date=end_date, interval="1h")
-                except Exception as e:
-                    logger.error(f"YFinance fallback failed for {asset.code}: {e}")
-
             return asset.code, df_day, df_60m
 
         for (user_id, market_type), assets in user_market_assets.items():

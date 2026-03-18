@@ -15,7 +15,6 @@ class TradeAction(enum.Enum):
 class MarketType(enum.Enum):
     A_SHARE = "A_SHARE"
     HK_SHARE = "HK_SHARE"
-    US_SHARE = "US_SHARE"
 
 class AssetMonitor(Base):
     __tablename__ = "asset_monitor"

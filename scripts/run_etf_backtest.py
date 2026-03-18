@@ -12,7 +12,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database.db import engine, SessionLocal
 from database.models import MarketType
 from data.futu_client import FutuClient
-from data.yf_client import YFinanceClient
 from main import save_klines_to_db, format_futu_df
 
 # Configure logging
@@ -42,7 +41,6 @@ def fetch_and_save_data(code, days=550):
     # Connect to data providers
     futu = FutuClient()
     connected = futu.connect()
-    yf_client = YFinanceClient()
     
     df_60m = None
     
@@ -55,25 +53,6 @@ def fetch_and_save_data(code, days=550):
         if df_60m is not None: df_60m = format_futu_df(df_60m)
         futu.close()
     
-    # Fallback to YFinance
-    if df_60m is None or df_60m.empty:
-        logger.info("Futu failed or returned empty. Trying Yahoo Finance...")
-        try:
-            # Convert code format (e.g. HK.00700 -> 0700.HK, SZ.159915 -> 159915.SZ)
-            if 'HK.' in code:
-                yf_code = code.replace('HK.', '') + '.HK'
-            elif 'SZ.' in code:
-                yf_code = code.replace('SZ.', '') + '.SZ'
-            elif 'SH.' in code:
-                yf_code = code.replace('SH.', '') + '.SS'
-            else:
-                yf_code = code
-                
-            df_60m = yf_client.get_historical_klines(yf_code, start_date, end_date, interval="1h")
-        except Exception as e:
-            logger.error(f"YFinance failed: {e}")
-            return False
-
     if df_60m is None or df_60m.empty:
         logger.error("Failed to fetch data from all sources.")
         return False

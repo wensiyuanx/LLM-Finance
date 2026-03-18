@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from data.futu_client import FutuClient
-from data.yf_client import YFinanceClient
 from strategy.indicators import calculate_indicators
 from scripts.visualizer import generate_kline_chart
 from database.models import MarketType
@@ -16,7 +15,7 @@ def main():
     parser = argparse.ArgumentParser(description="Standalone K-line Chart Generator")
     parser.add_argument("--code", type=str, required=True, help="Stock code (e.g., HK.00700, AAPL, SZ.000001)")
     parser.add_argument("--days", type=int, default=180, help="Number of days to fetch (default 180)")
-    parser.add_argument("--market", type=str, choices=["A", "HK", "US"], help="Market type (A, HK, US). Auto-detected if omitted.")
+    parser.add_argument("--market", type=str, choices=["A", "HK"], help="Market type (A, HK). Auto-detected if omitted.")
     
     args = parser.parse_args()
     code = args.code
@@ -29,29 +28,27 @@ def main():
         elif code.startswith("SH.") or code.startswith("SZ."):
             market = "A"
         else:
-            market = "US"
+            print("Error: Could not detect market type (A/HK). Please specify --market.")
+            return
 
     start_date = (datetime.now() - timedelta(days=args.days)).strftime("%Y-%m-%d")
     end_date = datetime.now().strftime("%Y-%m-%d")
 
     df = None
-    if market in ["A", "HK"]:
-        futu = FutuClient()
-        if futu.connect():
-            df = futu.get_historical_klines(code, start_date=start_date, end_date=end_date)
-            futu.close()
-            # Futu data needs formatting
-            if df is not None:
-                df['time_key'] = pd.to_datetime(df['time_key'])
-                df.set_index('time_key', inplace=True)
-        else:
-            print("Error: Could not connect to FutuOpenD.")
-            return
-    else:
-        yf = YFinanceClient()
-        df = yf.get_historical_klines(code, start_date=start_date, end_date=end_date)
+    
+    futu = FutuClient()
+    if futu.connect():
+        # TODO: Add get_historical_klines to FutuClient if not present or fix call
+        # Assuming get_historical_klines exists as seen in other files
+        df = futu.get_historical_klines(code, start_date=start_date, end_date=end_date)
+        futu.close()
+        # Futu data needs formatting
         if df is not None:
+            df['time_key'] = pd.to_datetime(df['time_key'])
             df.set_index('time_key', inplace=True)
+    else:
+        print("Error: Could not connect to FutuOpenD.")
+        return
 
     if df is not None and not df.empty:
         # Calculate indicators for the chart

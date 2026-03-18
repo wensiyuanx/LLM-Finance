@@ -5,6 +5,5 @@ sqlalchemy
 pymysql
 python-dotenv
 cryptography
-yfinance
 schedule
 mplfinance
