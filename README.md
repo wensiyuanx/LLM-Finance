@@ -504,4 +504,4 @@ class QuoteHandler(StockQuoteHandlerBase):
 
 ---
 
-**最后更新**: 2026-03-19 | **维护者**: Your Name | **版本**: 1.0.0
+**最后更新**: 2026-03-19 | **维护者**: NaSaSKY | **版本**: 1.0.0
