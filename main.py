@@ -1,3 +1,4 @@
+import os
 import logging
 from datetime import datetime, timedelta
 from database.db import SessionLocal, init_db
@@ -9,7 +10,10 @@ from scripts.visualizer import generate_kline_chart
 import pandas as pd
 import concurrent.futures
 from typing import Dict
-import os
+
+# Fix for FuTu API requiring HOME environment variable
+if 'HOME' not in os.environ:
+    os.environ['HOME'] = os.getcwd()
 
 logger = logging.getLogger(__name__)
 
@@ -203,7 +207,7 @@ def run_trading_bot(market_filter=None):
     if not futu_connected:
         print("Warning: Futu OpenAPI not connected. A-Share / HK-Share fetching will fail.")
 
-    yf_client = YFinanceClient()
+    # yf_client = YFinanceClient()  # Commented out as YFinanceClient is not imported/used
     db_session = SessionLocal()
     executor = OrderExecutor(db_session=db_session, futu_client=futu, simulate=True)
 

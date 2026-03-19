@@ -1,7 +1,13 @@
+import os
 import time
 import logging
 import threading
 from datetime import datetime
+
+# Fix for FuTu API requiring HOME environment variable
+if 'HOME' not in os.environ:
+    os.environ['HOME'] = os.getcwd()
+
 from futu import *
 from database.db import SessionLocal
 from database.models import Holding, AssetMonitor

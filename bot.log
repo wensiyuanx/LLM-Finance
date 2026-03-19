@@ -47,3 +47,20 @@
 2026-03-18 11:30:26,077 [INFO    ] main — [HK.00700] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0)
 2026-03-18 11:30:26,573 [INFO    ] main — [HK.07226] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0)
 2026-03-18 11:30:26,579 [INFO    ] scheduler — === HK-Share Market Job Finished ===
+2026-03-19 11:00:48,902 [INFO    ] scheduler — ============================================================
+2026-03-19 11:00:48,904 [INFO    ] scheduler — Starting enhanced scheduler with real-time monitoring...
+2026-03-19 11:00:48,904 [INFO    ] scheduler — ============================================================
+2026-03-19 11:00:48,907 [INFO    ] scheduler — [RealTime] Initializing Real-Time Market Monitor Thread...
+2026-03-19 11:00:48,908 [INFO    ] scheduler — [RealTime] Real-time monitor thread started successfully.
+2026-03-19 11:00:48,909 [INFO    ] scheduler — ============================================================
+2026-03-19 11:00:48,911 [INFO    ] scheduler — Scheduler configured:
+2026-03-19 11:00:48,911 [INFO    ] scheduler —   - Real-time monitoring: ACTIVE (background thread)
+2026-03-19 11:00:48,911 [INFO    ] scheduler —   - A-Share analysis: 11:30, 14:50
+2026-03-19 11:00:48,911 [INFO    ] scheduler —   - HK-Share analysis: 11:30, 14:00, 15:50
+2026-03-19 11:00:48,912 [INFO    ] scheduler —   - T+1 rollover: 09:00
+2026-03-19 11:00:48,912 [INFO    ] scheduler — ============================================================
+2026-03-19 11:00:48,912 [INFO    ] scheduler — Press Ctrl+C to stop.
+2026-03-19 11:00:48,912 [INFO    ] scheduler — Running initial startup analysis for A & HK shares...
+2026-03-19 11:00:48,912 [INFO    ] scheduler — === A-Share Market Job Started ===
+2026-03-19 11:00:49,607 [INFO    ] main — Trading bot started | filter: ['A_SHARE'].
+2026-03-19 11:01:41,692 [INFO    ] scheduler — [RealTime] Monitoring 7 active assets, checking 0 for ATR stop-loss.

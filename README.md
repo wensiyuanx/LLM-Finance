@@ -1,6 +1,26 @@
-# 富途量化交易机器人 - 完整操作手册 (Intraday 2-Hour 架构)
+# 富途量化交易机器人 - 完整操作手册
 
-本文档覆盖**本地开发调试**、**回测调优**、**资产管理**以及**生产环境部署**的全部流程。当前系统专为**A股及港股**优化，全面支持盘中2H级别分析、T+1交易规则限制及整手交易分配。
+本文档覆盖**本地开发调试**、**回测调优**、**资产管理**以及**生产环境部署**的全部流程。当前系统专为**A股及港股**优化，全面支持盘中60分钟级别分析、T+1交易规则限制及整手交易分配。
+
+**版本信息**：
+- 最新更新：2026-03-19
+- 核心特性：双轨制策略 + 实时风控 + 自动化调度
+- 运行模式：模拟交易（可切换实盘）
+
+**项目地址**：[LLM-Finance](https://github.com/your-repo/LLM-Finance)
+
+---
+
+## 📋 目录
+
+- [第一部分：核心架构与策略说明](#第一部分核心架构与策略说明)
+- [第二部分：本地环境启动与开发调试指南](#第二部分本地环境启动与开发调试指南)
+- [第三部分：资产管理与监控标的](#第三部分资产管理与监控标的)
+- [第四部分：回测调试](#第四部分回测调试)
+- [第五部分：日常审计命令](#第五部分日常审计命令)
+- [第六部分：生产服务器部署与实盘对接](#第六部分生产服务器部署与实盘对接)
+- [第七部分：常见问题与故障排查](#第七部分常见问题与故障排查)
+- [附录：技术架构详解](#附录技术架构详解)
 
 ---
 
@@ -9,11 +29,12 @@
 ### 1. 核心架构
 | 模块 | 技术 | 用途 |
 |------|------|------|
-| 数据采集 | Futu OpenAPI | 采集 A/港股 小时级别 K线 (K_60M)，强制前复权(QFQ)避免技术指标失真。 |
-| 指标计算 | pandas-ta | MA、RSI、布林带、ATR、ADX、OBV。数据由 1H 平滑聚合为 2H。 |
+| 数据采集 | Futu OpenAPI | 采集 A/港股 60分钟级别 K线 (K_60M)，强制前复权(QFQ)避免技术指标失真。 |
+| 指标计算 | pandas-ta | MA、RSI、布林带、ATR、ADX、OBV。支持多时间框架分析。 |
 | 资产组合 | PortfolioManager | 整手过滤(Board Lot)、防超买并发控制、管理 T+1 (A股) / T+0 (港股)。 |
 | 数据库 | MySQL + SQLAlchemy | K线存档、信号审计、持仓快照(含可用数量)、并发读写钱包。 |
-| 并发调度 | sched + ThreadPool | 极速协程拉取行情，对接每日早盘锁定结算与尾盘集合竞价。 |
+| 并发调度 | schedule + ThreadPool | 定时任务调度，对接每日早盘锁定结算与尾盘集合竞价。 |
+| 实时监控 | Futu WebSocket | 高频实时报价订阅，盘中止损止盈风险控制。 |
 | 回测引擎 | Backtrader | 提供策略的回测与参数拟合平台。 |
 
 ### 2. 量化策略体系 (双轨制)
@@ -23,9 +44,9 @@
 #### 2.1 标的打分机制与组合管理
 为了解决资金有限时多个标的同时出现买点的问题，系统引入了打分机制：
 - **得分计算**：只要触发买入信号，系统会基于当前的 RSI 超卖程度计算得分（`score = 100 - RSI_14`）。RSI 越低（跌幅越大、偏离度越高），得分越高。如果在 ETF 策略中直接跌破了布林带下轨，还会额外加 10 分。
-- **资金分配**：在订单评估环节，系统会将所有买入信号按得分**降序排序**，优先将可用资金买入“超卖最严重、得分最高”的标的，直到现金耗尽。
+- **资金分配**：在订单评估环节，系统会将所有买入信号按得分**降序排序**，优先将可用资金买入"超卖最严重、得分最高"的标的，直到现金耗尽。
 
-#### 2.2 个股策略 (2H 级别多因子共振 - 右侧趋势)
+#### 2.2 个股策略 (60分钟级别多因子共振 - 右侧趋势)
 适用于普通股票（如腾讯、阿里等），侧重于趋势确认和防骗线。
 **买入条件**（需共振 ≥ 2 个，且无持仓）:
 | 因子 | 条件 |
@@ -106,35 +127,58 @@ python main.py
 ```
 *这会输出并发抓取进度、每只股票是否触发买卖信号、可用余额与T+1交易核算信息。*
 
-### 6. 双引擎驱动架构 (定时任务 + 实时高频监控)
+### 5. 双引擎驱动架构 (定时任务 + 实时高频监控)
 
-目前系统升级为“双引擎”架构，确保盘中风险可控，同时保持定时评估的稳定性。
+目前系统升级为"双引擎"架构，确保盘中风险可控，同时保持定时评估的稳定性。
 
-#### 引擎一：主调度器 (每日守护进程)
+#### 🕐 引擎一：主调度器 (每日守护进程 - 已集成实时监控)
+
+**重要更新**：实时监控功能已集成到调度器中，无需单独启动！
+
 当你调试无误准备挂机时，启动调度器即可：
 ```bash
 python run_scheduler.py
 ```
+
 **系统将按照以下严格的交易时间表全自动轮询：**
 - **09:00** - T+1 限售股转解禁（A股可卖份额重置）
 - **11:30** - A股、港股 上午收盘数据切片扫描
-- **13:30** - 港股 下午盘中评估
+- **14:00** - 港股 下午盘中评估
 - **14:50** - A股 尾盘准点执行扫描 (规避跳空，切入竞价)
 - **15:50** - 港股 尾盘准点执行扫描
 
-#### 引擎二：高频实时监控线程 (Websocket 订阅)
-这是一个完全独立的实时监控脚本，像保安一样死死盯住您的持仓和关注列表，防范盘中闪崩。新开一个终端窗口运行：
-```bash
-python realtime_monitor.py
-```
-**核心功能：**
-- **实时看板订阅**：利用 Futu API 的 `OpenQuoteContext` 建立长连接，订阅数据库中所有 `is_active=1` 的监控标的实时报价，并每秒将最新价格（`last_price`）更新到数据库的 `asset_monitor` 表中，供大屏或 SQL 实时查看。
-- **高频止损/止盈拦截**：
-  - 脚本在后台每秒接收富途推送，立即与数据库中的持仓均价 (`avg_cost`) 比对。
-  - 一旦盘中价格发生闪崩或暴涨，触发了硬性止损（-8%）或硬性止盈（+15%），立即拦截并打印报警日志（触发卖出）。
-- **动态刷新**：内置轮询机制（每 60 秒刷新一次），如果主程序 `main.py` 在尾盘新买入了股票，它会自动将其加入实时订阅列表中。
+**调度器特性**：
+- ✅ 集成实时风控监控（无需额外进程）
+- ✅ 自动处理A股T+1交易规则
+- ✅ 支持多市场并行调度
+- ✅ 日志持久化到 `bot.log`
+- ✅ 优雅的异常处理和恢复机制
 
-> ℹ️ **说明**：目前的执行依然是模拟打印日志，不会真实扣费。建议先同时开启这两个脚本跑几天，观察打分买入的优先级和实时止损的触发是否符合预期，以及高频监控是否能精准捕获盘中的价格异动。
+#### 🔄 引擎二：实时监控线程 (已集成到调度器)
+
+**实时监控功能已集成到 `run_scheduler.py` 中**，作为后台守护线程运行。
+
+**核心功能：**
+- **实时看板订阅**：利用 Futu API 的 `OpenQuoteContext` 建立长连接，订阅数据库中所有 `is_active=1` 的监控标的实时报价，并每秒将最新价格（`last_price`）更新到数据库的 `asset_monitor` 表中。
+- **高频止损/止盈拦截**：
+  - 每秒接收富途推送，立即与数据库中的持仓均价 (`avg_cost`) 比对。
+  - 触发硬性止损（-8%）或硬性止盈（+15%）时，立即记录日志。
+- **动态刷新**：内置轮询机制（每 60 秒刷新一次），自动新增监控标的。
+
+> ℹ️ **说明**：
+> - 现在只需要运行 `python run_scheduler.py` 即可获得完整的调度+监控功能
+> - 如需单独测试实时监控，仍可运行 `python realtime_monitor.py`
+> - 目前的执行依然是模拟打印日志，不会真实扣费
+
+#### 📊 运行模式对比
+
+| 运行模式 | 命令 | 适用场景 | 功能 |
+|---------|------|---------|------|
+| **单次分析** | `python main.py` | 开发调试、测试 | 执行一次策略分析 |
+| **完整调度** | `python run_scheduler.py` | 生产部署 | 定时调度 + 实时监控 |
+| **独立监控** | `python realtime_monitor.py` | 测试监控功能 | 仅实时风控监控 |
+
+> 💡 **推荐**：生产环境使用 `python run_scheduler.py`，一个命令搞定所有功能！
 
 ---
 
@@ -158,7 +202,7 @@ UPDATE asset_monitor SET is_active = 0 WHERE code = 'HK.00700';
 
 ---
 
-## 第四部分：回测调试 (Backtesting Engine)
+## 第四部分：回测调试
 
 如果你修改了 `strategy/logic.py` 内的参数，极度建议跑一次回测以确认胜率。
 系统配套了原生的 Backtrader 回测引擎核心，包含两套独立的回测脚本。
@@ -226,10 +270,238 @@ nohup python run_scheduler.py > bot_production.log 2>&1 &
 tail -f bot_production.log
 ```
 
-### 2. 实盘对接警告
+### 2. 系统管理 (systemd)
+推荐使用 systemd 管理服务，创建 `/etc/systemd/system/quant-bot.service`：
+```ini
+[Unit]
+Description=Quant Trading Bot
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=www
+WorkingDirectory=/www/wwwroot/llm-transaction-futu
+ExecStart=/usr/bin/python3 run_scheduler.py
+Restart=always
+RestartSec=10
+Environment="PATH=/www/wwwroot/llm-transaction-futu/venv/bin"
+
+[Install]
+WantedBy=multi-user.target
+```
+
+启动服务：
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable quant-bot
+sudo systemctl start quant-bot
+sudo systemctl status quant-bot
+```
+
+### 3. 实盘对接警告
 > ⚠️ **高风险操作：实盘下有损耗、滑点与佣金，请务必在 Paper Trading (纸面测试) 且胜率达标后开启。**
 
 目前系统默认在沙盒模式运行（`simulate=True`）。如果要接入自己的富途账户提款：
 1. 打开 `main.py`，找到 `OrderExecutor`，将 `simulate=True` 改为 `simulate=False`。
 2. 打开 `engine/executor.py`，**解除发单接口注解** `trade_ctx.place_order`，开启真实接口调用。
-3. **严重警告**：请务必同时实装第二阶段的“Stop-loss order (条件单)”，确保每次发送买入市价单时，附带挂上计算好的保护性止损止盈单！
+3. **严重警告**：请务必同时实装第二阶段的"Stop-loss order (条件单)"，确保每次发送买入市价单时，附带挂上计算好的保护性止损止盈单！
+
+---
+
+## 第七部分：常见问题与故障排查
+
+### 1. 环境变量问题
+**问题**：`KeyError: 'HOME'`
+```bash
+# 解决方案：已在代码中自动修复，确保使用最新版本的 run_scheduler.py
+# 如果仍然出现，手动设置环境变量：
+export HOME=/www/wwwroot/llm-transaction-futu
+python run_scheduler.py
+```
+
+### 2. 富途API连接失败
+**问题**：`Connect fail: ECONNREFUSED`
+```bash
+# 检查富途OpenD是否运行
+netstat -tuln | grep 11111
+
+# 检查日志
+tail -f bot.log | grep -i "futu\|connect"
+```
+
+### 3. 数据库连接问题
+**问题**：`Can't connect to MySQL server`
+```bash
+# 检查数据库是否运行
+sudo systemctl status mysql
+
+# 检查.env配置
+cat .env | grep DB_
+
+# 测试数据库连接
+mysql -h $DB_HOST -u $DB_USER -p$DB_PASSWORD $DB_NAME
+```
+
+### 4. 信号记录为空
+**问题**：signal_records表没有BUY/SELL信号
+```bash
+# 这是正常现象！说明当前市场条件不符合交易要求
+# 查看最近的信号记录
+python -c "
+from database.db import SessionLocal
+from database.models import SignalRecord
+db = SessionLocal()
+signals = db.query(SignalRecord).order_by(SignalRecord.created_at.desc()).limit(10).all()
+for s in signals:
+    print(f'{s.created_at} | {s.code} | {s.action.name} | {s.reason}')
+db.close()
+"
+```
+
+### 5. 内存不足
+**问题**：`MemoryError` 或系统变慢
+```bash
+# 查看内存使用
+free -h
+
+# 清理旧的日志文件
+find . -name "*.log" -mtime +7 -delete
+
+# 清理旧的图表文件
+find output/charts/ -mtime +7 -delete
+```
+
+### 6. 权限问题
+**问题**：`Permission denied`
+```bash
+# 修改文件权限
+chmod +x run_scheduler.py
+chmod +x main.py
+
+# 修改目录权限
+chown -R www:www /www/wwwroot/llm-transaction-futu
+```
+
+---
+
+## 附录：技术架构详解
+
+### A. 项目目录结构
+```
+LLM-Finance/
+├── database/                    # 数据库模块
+│   ├── db.py                   # 数据库连接配置
+│   └── models.py               # SQLAlchemy数据模型
+│
+├── data/                       # 数据采集模块
+│   └── futu_client.py          # 富途API客户端
+│
+├── engine/                     # 交易执行引擎
+│   ├── executor.py             # 订单执行器
+│   └── portfolio.py            # 组合管理器
+│
+├── strategy/                   # 交易策略模块
+│   ├── indicators.py           # 技术指标计算
+│   └── logic.py                # 策略逻辑（个股+ETF）
+│
+├── scripts/                    # 工具脚本
+│   ├── init_db.py              # 数据库初始化
+│   ├── run_backtest.py         # 个股回测
+│   ├── run_etf_backtest.py     # ETF回测
+│   ├── visualizer.py           # K线图表生成
+│   └── backtest/               # 回测策略
+│       ├── backtrader_strategy.py
+│       └── etf_grid_strategy.py
+│
+├── output/                     # 输出目录
+│   └── charts/                 # 生成的图表
+│
+├── main.py                     # 主程序入口
+├── run_scheduler.py            # 调度器入口（集成实时监控）
+├── realtime_monitor.py         # 实时监控入口（独立）
+├── requirements.txt            # 依赖配置
+├── .env                        # 环境变量
+├── .gitignore                  # Git忽略文件
+└── README.md                   # 项目文档
+```
+
+### B. 数据库表结构
+```sql
+-- 核心表
+kline_data              # K线数据存储
+signal_records          # 交易信号记录
+trade_records           # 实际交易记录
+user_wallets            # 用户钱包
+holdings                # 持仓信息
+asset_monitor           # 监控资产列表
+```
+
+### C. 关键配置参数
+```python
+# 位置：main.py
+DATA_WINDOW_DAYS = 550        # 数据窗口天数
+POSITION_SIZE_FRAC = 0.25     # 单次买入仓位比例
+
+# 位置：strategy/logic.py
+# 个股策略参数
+RSI_OVERSOLD = 35             # RSI超卖阈值
+RSI_OVERBOUGHT = 70           # RSI超买阈值
+BOLL_TOUCH_PCT = 0.01         # 布林带触及阈值
+
+# ETF策略参数
+RSI_EXTREME_OVERSOLD = 25     # ETF极度超卖阈值
+GRID_DROP_PCT = 0.03          # 网格加仓间距
+TAKE_PROFIT_PCT = 0.04        # 整体止盈目标
+MAX_TRANCHES = 4              # 最大建仓批次
+
+# 实时监控参数
+HARD_STOP_LOSS = -0.08        # 硬止损阈值
+HARD_TAKE_PROFIT = 0.15       # 硬止盈阈值
+```
+
+### D. API接口说明
+```python
+# 富途OpenAPI主要接口
+from futu import *
+
+# 行情订阅
+quote_ctx = OpenQuoteContext(host='127.0.0.1', port=11111)
+quote_ctx.subscribe(codes, [SubType.QUOTE], subscribe_push=True)
+
+# K线数据获取
+ret, data = quote_ctx.get_history_kline(code, start=start, end=end, ktype=KLType.K_60M)
+
+# 实时报价处理
+class QuoteHandler(StockQuoteHandlerBase):
+    def on_recv_rsp(self, rsp_pb):
+        # 处理实时报价推送
+        pass
+```
+
+---
+
+## 📞 技术支持
+
+如有问题或建议，请通过以下方式联系：
+- GitHub Issues: [项目Issues页面](https://github.com/your-repo/LLM-Finance/issues)
+- 邮件: support@example.com
+
+---
+
+## 📄 许可证
+
+本项目采用 MIT 许可证 - 详见 LICENSE 文件
+
+---
+
+## 🙏 致谢
+
+感谢以下开源项目：
+- [Futu OpenAPI](https://openapi.futunn.com/) - 富途开放平台
+- [pandas-ta](https://github.com/twopirllc/pandas-ta) - 技术分析库
+- [Backtrader](https://www.backtrader.com/) - 回测框架
+- [SQLAlchemy](https://www.sqlalchemy.org/) - ORM框架
+
+---
+
+**最后更新**: 2026-03-19 | **维护者**: Your Name | **版本**: 1.0.0
