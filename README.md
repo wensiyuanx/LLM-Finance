@@ -1,4 +1,4 @@
-# 富途量化交易机器人 - 完整操作手册
+# 富途量化交易机器人V1.0.0 - 完整操作手册
 
 本文档覆盖**本地开发调试**、**回测调优**、**资产管理**以及**生产环境部署**的全部流程。当前系统专为**A股及港股**优化，全面支持盘中60分钟级别分析、T+1交易规则限制及整手交易分配。
 
@@ -484,7 +484,7 @@ class QuoteHandler(StockQuoteHandlerBase):
 
 如有问题或建议，请通过以下方式联系：
 - GitHub Issues: [项目Issues页面](https://github.com/your-repo/LLM-Finance/issues)
-- 邮件: support@example.com
+- 邮件: 13113288579@163.com
 
 ---
 

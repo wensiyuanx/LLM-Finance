@@ -1,3 +1,6 @@
+# Environment variables
+.env
+
 # Python
 __pycache__/
 *.py[cod]
@@ -16,19 +19,14 @@ parts/
 sdist/
 var/
 wheels/
-pip-wheel-metadata/
-share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
 
-# Virtual Environment
+# Virtual environments
 venv/
-env/
 ENV/
-env.bak/
-venv.bak/
+env/
 
 # IDE
 .vscode/
@@ -36,83 +34,39 @@ venv.bak/
 *.swp
 *.swo
 *~
-.DS_Store
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# Environment variables
-.env
-.env.local
-.env.*.local
 
 # Logs
 *.log
-logs/
-*.log.*
+bot.log
 
 # Database
 *.db
 *.sqlite
 *.sqlite3
 
-# Output files
-output/
-charts/
-*.png
-*.jpg
-*.jpeg
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-
-# MyPy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre
-.pyre/
-
-# Pytype
-.pytype/
-
 # OS
-Thumbs.db
 .DS_Store
+Thumbs.db
 
 # Project specific
-bot.log
-bot_production.log
-*.bak
+output/charts/
+*.png
+!charts/.gitkeep
+
+# Temporary files
 *.tmp
 temp/
 tmp/
 
-# FuTu API
-.futu/
+# Jupyter Notebook
+.ipynb_checkpoints
 
-# Data files (large files, sensitive data)
-data/*.csv
-data/*.xlsx
-data/*.json
-!data/*.py
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
 
-# Cache
-.cache/
-*.cache
-
-# Session files
-*.session
-*.session-journal
-
-# Backup files
-*.backup
-*.old
-*~
-
-# Lock files
-*.lock
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
