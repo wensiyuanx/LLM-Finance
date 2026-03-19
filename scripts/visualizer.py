@@ -1,4 +1,5 @@
 import os
+import platform
 import pandas as pd
 import mplfinance as mpf
 import matplotlib.pyplot as plt
@@ -137,8 +138,9 @@ def generate_kline_chart(df: pd.DataFrame, code: str, output_dir: str = "output/
         rsi_ax = axlist[-2] # In 4 panel setup with volume=True, usually axlist[-2] is panel 3 (RSI)
         rsi_ax.fill_between(range(len(plot_df)), 30, 70, color='#2a2e39', alpha=0.3, zorder=0)
 
-        # 2. Add Super Title (Headed Outside)
-        fig.suptitle(title, color=title_color, fontsize=20, weight='bold', y=0.97, fontname='Arial')
+        # 2. Add Super Title (Headed Outside) - Use platform-compatible font
+        font_name = 'Helvetica' if platform.system() == 'Darwin' else 'DejaVu Sans'
+        fig.suptitle(title, color=title_color, fontsize=20, weight='bold', y=0.97, fontname=font_name)
         
         # 3. Add Subtle Branded Watermark
         fig.text(0.5, 0.5, 'QUANTO-BOT AI ANALYSIS', color=text_color, alpha=0.05,

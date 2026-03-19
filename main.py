@@ -1,7 +1,11 @@
 import os
 import logging
+import warnings
 from datetime import datetime, timedelta
 from database.db import SessionLocal, init_db
+
+# Suppress matplotlib font warnings
+warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib.font_manager')
 from database.models import KLineData, TradeAction, SignalRecord, UserWallet, Holding, MarketType, AssetMonitor
 from data.futu_client import FutuClient
 from strategy.logic import generate_signals, generate_etf_signals

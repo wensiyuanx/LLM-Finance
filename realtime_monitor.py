@@ -3,6 +3,8 @@ import time
 import logging
 import threading
 from datetime import datetime
+from collections import defaultdict
+from queue import Queue
 
 # Fix for FuTu API requiring HOME environment variable
 if 'HOME' not in os.environ:
@@ -18,90 +20,187 @@ logger = logging.getLogger(__name__)
 
 class ATRStopLossHandler(StockQuoteHandlerBase):
     """
-    Handler for real-time tick/quote updates from FutuOpenD.
-    1. Updates real-time prices to AssetMonitor table.
+    Enhanced Handler for real-time tick/quote updates from FutuOpenD with caching and batch writing.
+    1. Updates real-time prices to AssetMonitor table using batch writing.
     2. Checks incoming price against dynamic ATR stop-loss levels for held positions.
+    3. Uses in-memory cache for AssetMonitor to reduce database queries.
     """
-    def __init__(self, db_session_unused):
+    def __init__(self, db_session_unused, batch_interval=5.0):
         super().__init__()
-        # We no longer save the session passed in the init because 
+        # We no longer save the session passed in the init because
         # this handler runs in async background threads.
         self.lock = threading.RLock() # Protect shared resources from concurrent access
         self.holdings = {}
         self.active_assets = []
+
+        # Cache for AssetMonitor data to reduce database queries
+        self.asset_cache = {}  # {code: AssetMonitor object}
+
+        # Batch writing system
+        self.pending_updates = {}  # {code: (price, timestamp)}
+        self.batch_interval = batch_interval  # seconds between batch writes
+        self.last_batch_write = time.time()
+        self.batch_write_event = threading.Event()
+
+        # Performance monitoring
+        self.update_count = 0
+        self.batch_write_count = 0
+        self.cache_hits = 0
+        self.cache_misses = 0
+
         self.refresh_state()
+        self.start_batch_writer()
 
     def refresh_state(self):
-        """Reload holdings and monitored assets from database"""
+        """Reload holdings and monitored assets from database and update cache"""
         session = SessionLocal()
         try:
             # Refresh Holdings
             records = session.query(Holding).filter(Holding.quantity > 0).all()
-            
+
             with self.lock:
                 self.holdings = {h.code: h for h in records}
-                
-                # Refresh Active Assets
+
+                # Refresh Active Assets and update cache
                 assets = session.query(AssetMonitor).filter(AssetMonitor.is_active == 1).all()
                 self.active_assets = [a.code for a in assets]
-            
-            logger.info(f"[RealTime] Monitoring {len(self.active_assets)} active assets, checking {len(self.holdings)} for ATR stop-loss.")
+
+                # Update AssetMonitor cache
+                self.asset_cache = {asset.code: asset for asset in assets}
+
+            logger.info(f"[RealTime] Monitoring {len(self.active_assets)} active assets, checking {len(self.holdings)} for ATR stop-loss. Cache size: {len(self.asset_cache)}")
         except Exception as e:
             logger.error(f"[RealTime] Failed to refresh state: {e}")
         finally:
             session.close()
 
+    def start_batch_writer(self):
+        """Start background thread for batch writing to database"""
+        def batch_writer_thread():
+            logger.info(f"[Batch Writer] Started with interval: {self.batch_interval}s")
+            while not self.batch_write_event.is_set():
+                try:
+                    # Wait for batch interval or event
+                    self.batch_write_event.wait(self.batch_interval)
+
+                    # Flush pending updates
+                    if self.pending_updates:
+                        self.flush_updates_to_db()
+                except Exception as e:
+                    logger.error(f"[Batch Writer] Error: {e}")
+
+        thread = threading.Thread(target=batch_writer_thread, daemon=True)
+        thread.start()
+        logger.info("[Batch Writer] Background thread started")
+
+    def flush_updates_to_db(self):
+        """Flush pending updates to database in batch"""
+        if not self.pending_updates:
+            return
+
+        start_time = time.time()
+        updates_to_process = {}
+
+        # Copy pending updates under lock
+        with self.lock:
+            updates_to_process = self.pending_updates.copy()
+            self.pending_updates.clear()
+
+        if not updates_to_process:
+            return
+
+        session = SessionLocal()
+        try:
+            # Batch query for all assets that need updating
+            codes_to_update = list(updates_to_process.keys())
+            assets = session.query(AssetMonitor).filter(
+                AssetMonitor.code.in_(codes_to_update)
+            ).all()
+
+            # Create dict for quick lookup
+            asset_dict = {asset.code: asset for asset in assets}
+
+            # Update all assets in batch
+            updated_count = 0
+            for code, (price, timestamp) in updates_to_process.items():
+                if code in asset_dict:
+                    asset_dict[code].last_price = price
+                    asset_dict[code].last_updated = timestamp
+                    updated_count += 1
+
+                    # Update cache
+                    with self.lock:
+                        if code in self.asset_cache:
+                            self.asset_cache[code].last_price = price
+                            self.asset_cache[code].last_updated = timestamp
+
+            # Single commit for all updates
+            session.commit()
+            self.batch_write_count += 1
+            self.last_batch_write = time.time()
+
+            elapsed = time.time() - start_time
+            logger.info(f"[Batch Writer] Flushed {updated_count} updates in {elapsed:.3f}s")
+
+        except Exception as e:
+            logger.error(f"[Batch Writer] Database error: {e}")
+            session.rollback()
+            # Put failed updates back
+            with self.lock:
+                self.pending_updates.update(updates_to_process)
+        finally:
+            session.close()
+
+    def queue_price_update(self, code, price, timestamp):
+        """Queue a price update for batch writing"""
+        with self.lock:
+            self.pending_updates[code] = (price, timestamp)
+            self.update_count += 1
+
     def on_recv_rsp(self, rsp_pb):
         ret_code, data = super(ATRStopLossHandler, self).on_recv_rsp(rsp_pb)
         if ret_code == RET_OK:
-            # Create a fresh session for this async callback to ensure thread-safety
-            session = SessionLocal()
             try:
                 # data is a DataFrame with real-time quotes
                 updates = []
+                current_time = datetime.now()
+
                 for _, row in data.iterrows():
                     code = row['code']
                     current_price = row['last_price']
                     updates.append(f"{code}: {current_price}")
-                    
-                    # 1. Update AssetMonitor with real-time price
-                    asset = session.query(AssetMonitor).filter(AssetMonitor.code == code).first()
-                    if asset:
-                        asset.last_price = current_price
-                        asset.last_updated = datetime.now()
-                        session.commit()
-                    
+
+                    # 1. Queue price update for batch writing (no immediate DB write)
+                    self.queue_price_update(code, current_price, current_time)
+
                     # 2. Check if we hold this stock for Stop Loss / Take Profit
                     with self.lock:
                         if code in self.holdings:
                             holding = self.holdings[code]
                             avg_cost = holding.avg_cost
-                            
+
                             # Calculate real-time profit/loss
                             profit_pct = (current_price - avg_cost) / avg_cost
-                            
+
                             # 1. Hard Stop-Loss check (e.g. -8%)
                             if profit_pct <= -0.08:
                                 logger.warning(f"🚨 [REAL-TIME STOP LOSS] {code} triggers hard stop loss! Cost: {avg_cost}, Price: {current_price}, P&L: {profit_pct*100:.2f}%")
                                 self._trigger_sell(code, current_price, "Real-time Hard Stop Loss (-8%)")
-                            
+
                             # 2. Hard Take-Profit check (e.g. +15%)
                             elif profit_pct >= 0.15:
                                 logger.info(f"💰 [REAL-TIME TAKE PROFIT] {code} triggers hard take profit! Cost: {avg_cost}, Price: {current_price}, P&L: {profit_pct*100:.2f}%")
                                 self._trigger_sell(code, current_price, "Real-time Hard Take Profit (+15%)")
-                            
+
                 # Print a brief summary of received prices so the user can see it in the terminal
                 if updates:
                     print(f"[{datetime.now().strftime('%H:%M:%S')}] 实时报价更新 -> " + " | ".join(updates))
-                            
+
             except Exception as e:
                 logger.error(f"[RealTime] Error processing quote update: {e}")
-                session.rollback()
-            finally:
-                session.close()
         else:
             logger.error(f"[RealTime] Quote subscription error: {data}")
-            
+
         return RET_OK, data
         
     def _trigger_sell(self, code, price, reason):
@@ -113,12 +212,27 @@ class ATRStopLossHandler(StockQuoteHandlerBase):
             if code in self.holdings:
                 del self.holdings[code]
 
-def start_realtime_monitor(codes_to_monitor=None):
+    def get_performance_stats(self):
+        """Get performance statistics for monitoring"""
+        with self.lock:
+            return {
+                'total_updates': self.update_count,
+                'batch_writes': self.batch_write_count,
+                'pending_updates': len(self.pending_updates),
+                'cache_size': len(self.asset_cache),
+                'holdings_monitored': len(self.holdings),
+                'active_assets': len(self.active_assets)
+            }
+
+def start_realtime_monitor(codes_to_monitor=None, batch_interval=5.0):
     """
     Starts the independent high-frequency thread for real-time ATR stop-loss monitoring.
+    Args:
+        codes_to_monitor: Additional codes to monitor beyond active assets
+        batch_interval: Interval in seconds for batch writing to database (default: 5.0)
     """
-    logger.info("Initializing Real-Time Market Monitor...")
-    
+    logger.info("Initializing Real-Time Market Monitor with batch writing...")
+
     # Use the same host/port as defined in data/futu_client.py
     # Since we are in mock mode, ensure FutuOpenD is running
     try:
@@ -130,20 +244,20 @@ def start_realtime_monitor(codes_to_monitor=None):
 
     # Setup database session for initial load (not used in async callbacks anymore)
     session = SessionLocal()
-    
-    # Register handler
-    handler = ATRStopLossHandler(session)
+
+    # Register handler with batch writing support
+    handler = ATRStopLossHandler(session, batch_interval=batch_interval)
     quote_ctx.set_handler(handler)
-    
+
     # Start asynchronous push
     quote_ctx.start()
-    
+
     # Get active assets to monitor (both holdings and watchlist)
     codes = handler.active_assets
     if codes_to_monitor:
         codes.extend(codes_to_monitor)
         codes = list(set(codes)) # deduplicate
-        
+
     if not codes:
         logger.info("No active assets to monitor. Still running in background...")
     else:
@@ -158,7 +272,14 @@ def start_realtime_monitor(codes_to_monitor=None):
             time.sleep(60)
             # Periodically refresh state in case the main scheduler added something new
             handler.refresh_state()
-            
+
+            # Log performance stats periodically
+            stats = handler.get_performance_stats()
+            logger.info(f"[RealTime Stats] Updates: {stats['total_updates']}, "
+                       f"Batch writes: {stats['batch_writes']}, "
+                       f"Pending: {stats['pending_updates']}, "
+                       f"Cache: {stats['cache_size']}")
+
             # Update subscription if new assets appear
             new_codes = handler.active_assets
             if set(new_codes) != set(codes):
@@ -166,9 +287,12 @@ def start_realtime_monitor(codes_to_monitor=None):
                 if codes:
                     quote_ctx.subscribe(codes, [SubType.QUOTE], subscribe_push=True)
                     logger.info(f"Updated real-time subscription list: {codes}")
-                
+
     except KeyboardInterrupt:
         logger.info("Stopping real-time monitor...")
+        # Flush any remaining updates before shutdown
+        logger.info("Flushing remaining updates...")
+        handler.flush_updates_to_db()
     finally:
         quote_ctx.close()
         session.close()

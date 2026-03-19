@@ -1,7 +1,11 @@
 import sys
 import os
 import argparse
+import warnings
 from datetime import datetime, timedelta
+
+# Suppress matplotlib font warnings
+warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib.font_manager')
 
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
