@@ -7,3 +7,7 @@ python-dotenv
 cryptography
 schedule
 mplfinance
+backtrader
+fastapi
+uvicorn[standard]
+tos

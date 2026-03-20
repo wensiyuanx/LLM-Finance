@@ -41,6 +41,11 @@ class MultiTimeframeStrategy(bt.Strategy):
         
         self.atr = bt.indicators.ATR(self.datas[0], period=self.params.atr_period)
         
+        # Trend detection SMAs for re-entry (Hourly)
+        self.sma20_h = bt.indicators.SMA(self.datas[0], period=20)
+        self.sma60_h = bt.indicators.SMA(self.datas[0], period=60)
+        self.sma120_h = bt.indicators.SMA(self.datas[0], period=120)
+
         # Daily Indicators
         self.daily_sma_trend = bt.indicators.SimpleMovingAverage(self.datas[1], period=self.params.sma_trend_daily)
         self.daily_adx = bt.indicators.DirectionalMovementIndex(self.datas[1], period=self.params.adx_period)
@@ -50,6 +55,9 @@ class MultiTimeframeStrategy(bt.Strategy):
 
         self.order = None
         self.buyprice = None
+        
+        # State tracking for trend re-entry
+        self._trend_breakout_used = False
         
         # To track buy/sell points for plotting
         self.buy_markers = []
@@ -69,6 +77,8 @@ class MultiTimeframeStrategy(bt.Strategy):
             elif order.issell():
                 self.buyprice = None
                 self.sell_markers.append((dt, order.executed.price))
+                if self.position.size == 0:
+                    self._trend_breakout_used = False # Reset on full exit
         
         self.order = None
 
@@ -136,16 +146,29 @@ class MultiTimeframeStrategy(bt.Strategy):
             if self.rsi[0] < self.params.rsi_oversold:
                 buy_signals.append(f"小时线RSI超卖({self.rsi[0]:.1f})")
 
+            # 4. NEW: Trend Alignment Re-entry (防止牛市踏空)
+            # Perfect Order: SMA20 > SMA60 > SMA120 and Price > SMA20
+            if not self.position and not self._trend_breakout_used:
+                in_strong_uptrend = (
+                    self.sma20_h[0] > self.sma60_h[0] > self.sma120_h[0]
+                    and current_price > self.sma20_h[0]
+                    and 48 < self.rsi[0] < 72 # 强势但不超买
+                )
+                if in_strong_uptrend:
+                    buy_signals.append("趋势确认强力追入")
+                    self._trend_breakout_used = True
+
         # SELL LOGIC: Take profits and cut losses (Independent of daily trend)
         if self.position:
+            # Check if we are in an extremely strong daily trend (relax sell rules)
+            is_extreme_trend = self.daily_adx.adx[0] > 30
+            
             # 1. Take Profit: Hit upper Bollinger Band
-            # For ETFs, we want to secure profits quickly in sideways markets
-            if current_price >= self.boll.lines.top[0] and not in_strong_trend:
+            if current_price >= self.boll.lines.top[0] and not in_strong_trend and not is_extreme_trend:
                 sell_signals.append("触及小时线布林带上轨")
                 
             # 2. Take Profit: RSI Overbought
-            # Lowered threshold to 65 for ETFs to secure profits earlier
-            if self.rsi[0] > 65 and not in_strong_trend:
+            if self.rsi[0] > 70 and not in_strong_trend and not is_extreme_trend:
                 sell_signals.append(f"小时线RSI超买({self.rsi[0]:.1f})")
                 
             # 3. Stop Loss / Trend Reversal: Fast MA crosses below Slow MA
@@ -173,7 +196,11 @@ class MultiTimeframeStrategy(bt.Strategy):
         # if buy_signal and current_time.hour < 14:
         #     buy_signal = False # Suppress morning buys
 
-        # Execution
+        # Execution with Conflict Resolution
+        if buy_signal and sell_signal:
+            print(f"{self.datas[0].datetime.datetime(0)} - 信号冲突 (Buy+Sell), 观望")
+            return
+
         if not self.position:
             if buy_signal:
                 cash = self.broker.getcash()

@@ -45,14 +45,10 @@ class BacktestRequest(BaseModel):
 
 
 def upload_to_tos(local_file_path: str, object_key: str) -> str:
-    try:
-        client = tos.TosClientV2(TOS_AK, TOS_SK, TOS_ENDPOINT, TOS_REGION)
-        client.put_object_from_file(TOS_BUCKET, object_key, local_file_path)
-        url = f"https://{TOS_BUCKET}.{TOS_ENDPOINT}/{object_key}"
-        return url
-    except Exception as e:
-        print(f"Error uploading to TOS: {e}")
-        return ""
+    client = tos.TosClientV2(TOS_AK, TOS_SK, TOS_ENDPOINT, TOS_REGION)
+    client.put_object_from_file(TOS_BUCKET, object_key, local_file_path)
+    url = f"https://{TOS_BUCKET}.{TOS_ENDPOINT}/{object_key}"
+    return url
 
 
 def run_backtest_job(job_id: str, req: BacktestRequest):

@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 # Add project root to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from sqlalchemy import text
 from database.db import engine, SessionLocal
 from database.models import MarketType
 from data.futu_client import FutuClient
@@ -87,7 +88,11 @@ def run_backtest(code, cash=100000.0):
     logger.info(f"Loading data for {code} from database...")
     
     query_60m = f"SELECT time_key, open_price as open, high_price as high, low_price as low, close_price as close, volume FROM kline_data WHERE code='{code}' AND timeframe='60m' ORDER BY time_key ASC"
-    df_60m = pd.read_sql_query(query_60m, engine)
+    raw_conn = engine.raw_connection()
+    try:
+        df_60m = pd.read_sql_query(query_60m, raw_conn)
+    finally:
+        raw_conn.close()
     
     if df_60m.empty:
         logger.error("Data missing in database even after fetch attempt.")

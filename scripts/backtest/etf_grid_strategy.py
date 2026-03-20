@@ -27,6 +27,15 @@ class ETFGridMeanReversionStrategy(bt.Strategy):
         # 仅在小时线上运行
         self.rsi = bt.indicators.RSI_Safe(self.datas[0], period=self.params.rsi_period)
         self.boll = bt.indicators.BollingerBands(self.datas[0], period=self.params.boll_period, devfactor=self.params.boll_dev)
+
+        # 趋势判断均线 (用于趋势追入再入场)
+        self.sma20  = bt.indicators.SMA(self.datas[0], period=20)
+        self.sma60  = bt.indicators.SMA(self.datas[0], period=60)
+        self.sma120 = bt.indicators.SMA(self.datas[0], period=120)
+        
+        # 记录上次卖出后价格的最低点，用于判断是否形成新的趋势
+        self._last_exit_price = None
+        self._trend_breakout_used = False  # 一个牛市阶段只追一次
         
         # 网格状态管理
         self.order = None
@@ -64,6 +73,7 @@ class ETFGridMeanReversionStrategy(bt.Strategy):
                 if self.position.size == 0:
                     # 全仓平仓模式，清空记录
                     self.buy_tranches = []
+                    self._on_full_exit()  # 重置趋势追入标志，允许下次牛市再入场
                     print(f"{dt} - [网格清仓] 成功全部卖出, 价格: {order.executed.price:.3f}")
                 else:
                     # 分批平仓，移除最后一批
@@ -118,7 +128,7 @@ class ETFGridMeanReversionStrategy(bt.Strategy):
         # 2. 买入逻辑 (左侧网格建仓)
         
         # 避免 A 股早盘冲高回落的 T+1 风险，限制在下午建仓 (可根据需要开启或关闭)
-        if dt.time().hour < 14:
+        if dt.time().hour < 13:
             return
             
         current_tranches = len(self.buy_tranches)
@@ -161,3 +171,27 @@ class ETFGridMeanReversionStrategy(bt.Strategy):
                 if qty > 0:
                     print(f"{dt} - 触发买入: {buy_reason}, 计划买入 {qty} 股")
                     self.order = self.buy(size=qty)
+
+        # 3. 趋势突破追入（防止错过牛市）—— 空仓 + 均线多头排列 + RSI 适中
+        elif current_tranches == 0 and not self._trend_breakout_used:
+            in_uptrend = (
+                self.sma20[0] > self.sma60[0] > self.sma120[0]  # 均线多头排列
+                and current_price > self.sma20[0]                # 价格在20均线上方
+                and 48 < self.rsi[0] < 72                        # RSI 适中偏强，非超买也非超卖
+                and current_price > self.boll.lines.mid[0]       # 价格在布林中轨上方
+            )
+            if in_uptrend:
+                cash = self.broker.getcash()
+                # 趋势追入仅用 15% 仓位，较保守
+                target_cash_use = min(self.broker.getvalue() * 0.15, cash * 0.95)
+                qty = int(target_cash_use / current_price / 100) * 100
+                if qty > 0:
+                    buy_reason = f"趋势追入: 均线多头排列, RSI={self.rsi[0]:.1f}, 价格在中轨上方"
+                    print(f"{dt} - 触发趋势买入: {buy_reason}, 计划买入 {qty} 股")
+                    self.order = self.buy(size=qty)
+                    self._trend_breakout_used = True  # 本轮牛市只追一次
+
+    def _on_full_exit(self):
+        """Called when position is fully closed to reset breakout flag."""
+        self._trend_breakout_used = False
+        self._last_exit_price = self.dataclose[0]

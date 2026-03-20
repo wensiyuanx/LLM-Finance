@@ -125,30 +125,30 @@ def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_
         if pd.notna(upper_band) and current_price >= upper_band and not in_strong_trend:
             sell_signals.append("触及小时线布林带上轨")
 
-    # Multi-Factor Consensus
-    # Buy: require >= 2 confirmative signals for higher win rate, or 1 if it's a strong breakout
+    # Multi-Factor Consensus & Conflict Resolution
+    # Priority 1: If both buy and sell signals are present, stay neutral (HOLD) to avoid volatility noise
+    if len(buy_signals) > 0 and len(sell_signals) > 0:
+        return TradeAction.HOLD, f"信号冲突 (买:{len(buy_signals)}, 卖:{len(sell_signals)}), 暂时观望", 0.0
+
     score = 0.0
     if 'RSI_14' in latest and pd.notna(latest['RSI_14']):
-        # Higher score for lower RSI (more oversold)
         score = 100 - latest['RSI_14']
         
-    if len(buy_signals) >= 2 and current_position == 0:
-        return TradeAction.BUY, "强买入信号: " + " + ".join(buy_signals), score
-    elif len(buy_signals) == 1 and current_position == 0:
-        if "均线金叉" in buy_signals[0] or "RSI超卖" in buy_signals[0]:
-            return TradeAction.BUY, "买入信号: " + buy_signals[0], score
-        return TradeAction.HOLD, f"弱买入信号(仅1个，继续观察): {buy_signals[0]}", 0.0
-
-    # Sell: require >= 2 signals
-    if len(sell_signals) >= 2 and current_position > 0:
-        return TradeAction.SELL, "强卖出信号: " + " + ".join(sell_signals), 0.0
-
-    # Single sell signal
-    if len(sell_signals) == 1 and current_position > 0:
-        # If the only sell signal is just RSI overbought, but we are in a strong trend, we might hold
-        if "均线死叉" in sell_signals[0] or "布林带上轨" in sell_signals[0]:
-            return TradeAction.SELL, f"卖出信号: {sell_signals[0]}", 0.0
-        return TradeAction.HOLD, f"弱卖出信号(仅1个，继续观察): {sell_signals[0]}", 0.0
+    # Buy: only if no position
+    if current_position == 0:
+        if len(buy_signals) >= 2:
+            return TradeAction.BUY, "强买入信号: " + " + ".join(buy_signals), score
+        elif len(buy_signals) == 1:
+            if "均线金叉" in buy_signals[0] or "RSI超卖" in buy_signals[0]:
+                return TradeAction.BUY, "买入信号: " + buy_signals[0], score
+    
+    # Sell: only if holding
+    if current_position > 0:
+        if len(sell_signals) >= 2:
+            return TradeAction.SELL, "强卖出信号: " + " + ".join(sell_signals), 0.0
+        elif len(sell_signals) == 1:
+            if "均线死叉" in sell_signals[0] or "布林带上轨" in sell_signals[0]:
+                return TradeAction.SELL, f"卖出信号: {sell_signals[0]}", 0.0
 
     return TradeAction.HOLD, "无明确可执行信号 (观望/持仓)", 0.0
 
