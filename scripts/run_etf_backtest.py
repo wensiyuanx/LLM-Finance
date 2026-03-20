@@ -32,9 +32,13 @@ def fetch_and_save_data(code, days=550):
     try:
         df_check = pd.read_sql_query(query_check, engine)
         count = df_check['count'].iloc[0]
-        if count > 100:
-            logger.info(f"Found {count} records in DB. Skipping fetch.")
+        # Approximation: roughly 4 hourly candles per day * trading days (~0.7 of total days)
+        expected_candles = int(days * 0.7 * 4) * 0.9 # 10% buffer
+        if count > expected_candles:
+            logger.info(f"Found {count} records in DB (expected ~{expected_candles}). Skipping fresh fetch.")
             return True
+        else:
+            logger.info(f"Found {count} records, but expected ~{expected_candles}. Will fetch from API to ensure full history.")
     except Exception as e:
         logger.warning(f"DB check failed: {e}")
 

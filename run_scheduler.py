@@ -256,12 +256,64 @@ class ATRStopLossHandler(StockQuoteHandlerBase):
 
     def _trigger_sell(self, code, price, reason):
         """Execute a mock sell for the real-time trigger"""
-        logger.info(f"[RealTime Exec] Mock executing SELL for {code} at {price} due to {reason}")
-        # In a real system, this would call executor.py to place a market order
-        # For now, we just log it and remove it from monitoring
-        with self.lock:
-            if code in self.holdings:
+        logger.info(f"[RealTime Exec] Executing SELL for {code} at {price} due to {reason}")
+        from engine.executor import OrderExecutor
+        from database.models import TradeAction, UserWallet, Holding
+        session = SessionLocal()
+        try:
+            with self.lock:
+                if code not in self.holdings:
+                    return
+                holding_mem = self.holdings[code]
+                qty = holding_mem.sellable_quantity
+                user_id = holding_mem.user_id
+                
+                if qty <= 0:
+                    logger.warning(f"[RealTime Exec] Cannot sell {code}, sellable quantity is 0 (T+1 locked?)")
+                    del self.holdings[code]
+                    return
+                    
+                executor = OrderExecutor(db_session=session, futu_client=None, simulate=True)
+                trade_record = executor.execute_trade(
+                    user_id=user_id,
+                    code=code,
+                    action=TradeAction.SELL,
+                    price=price,
+                    quantity=qty,
+                    reason=reason
+                )
+                
+                if trade_record:
+                    wallet = session.query(UserWallet).filter(
+                        UserWallet.user_id == user_id,
+                        UserWallet.market_type == holding_mem.market_type
+                    ).first()
+                    
+                    if wallet:
+                        proceeds = qty * price
+                        wallet.balance += proceeds
+                        
+                    holding_db = session.query(Holding).filter(Holding.id == holding_mem.id).first()
+                    if holding_db:
+                        holding_db.quantity -= qty
+                        holding_db.sellable_quantity -= qty
+                        if holding_db.quantity <= 0.001:
+                            holding_db.quantity = 0.0
+                            holding_db.avg_cost = 0.0
+                            holding_db.sellable_quantity = 0.0
+                            holding_db.tranches_count = 0
+                        else:
+                            holding_db.tranches_count = max(1, holding_db.tranches_count - 1)
+                            
+                    session.commit()
+                    logger.info(f"[RealTime Exec] DB Updated. Sold {qty} shares of {code}.")
+                
                 del self.holdings[code]
+        except Exception as e:
+            session.rollback()
+            logger.error(f"[RealTime Exec] DB Error: {e}")
+        finally:
+            session.close()
 
     def get_performance_stats(self):
         """Get performance statistics for monitoring"""
@@ -350,6 +402,25 @@ def start_realtime_monitor_thread(batch_interval=5.0):
     return thread
 
 # ---------------------------------------------------------------------------
+# API Server entry point
+# ---------------------------------------------------------------------------
+def start_api_server_thread():
+    """Starts the FastAPI Web Interface in a background thread."""
+    def run_server():
+        import uvicorn
+        from api_server import app
+        logger.info("[API Server] Starting FastAPI on 0.0.0.0:8000")
+        os.environ['PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION'] = 'python'
+        try:
+            uvicorn.run(app, host="0.0.0.0", port=8000, log_level="warning")
+        except Exception as e:
+            logger.error(f"[API Server] Error starting API Server: {e}")
+
+    thread = threading.Thread(target=run_server, daemon=True)
+    thread.start()
+    return thread
+
+# ---------------------------------------------------------------------------
 # Scheduler entry point
 # ---------------------------------------------------------------------------
 
@@ -369,6 +440,9 @@ def start_scheduler(batch_interval=5.0):
     logger.info(f"Batch write interval: {batch_interval}s")
     logger.info("=" * 60)
     realtime_thread = start_realtime_monitor_thread(batch_interval=batch_interval)
+    
+    # Start API
+    api_thread = start_api_server_thread()
 
     # T+1 Rollover session: Before A/HK market opens
     schedule.every().day.at("09:00").do(job_rollover_t1)
@@ -387,6 +461,7 @@ def start_scheduler(batch_interval=5.0):
     logger.info("=" * 60)
     logger.info("Scheduler configured:")
     logger.info("  - Real-time monitoring: ACTIVE (background thread)")
+    logger.info("  - API Server: ACTIVE (127.0.0.1:8000 background thread)")
     logger.info("  - A-Share analysis: 11:30, 14:50")
     logger.info("  - HK-Share analysis: 11:30, 14:00, 15:50")
     logger.info("  - T+1 rollover: 09:00")

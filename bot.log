@@ -64,3 +64,22 @@
 2026-03-19 11:00:48,912 [INFO    ] scheduler — === A-Share Market Job Started ===
 2026-03-19 11:00:49,607 [INFO    ] main — Trading bot started | filter: ['A_SHARE'].
 2026-03-19 11:01:41,692 [INFO    ] scheduler — [RealTime] Monitoring 7 active assets, checking 0 for ATR stop-loss.
+2026-03-20 11:17:21,907 [INFO    ] scheduler — ============================================================
+2026-03-20 11:17:21,907 [INFO    ] scheduler — Starting enhanced scheduler with real-time monitoring and batch writing...
+2026-03-20 11:17:21,907 [INFO    ] scheduler — Batch write interval: 5.0s
+2026-03-20 11:17:21,907 [INFO    ] scheduler — ============================================================
+2026-03-20 11:17:21,907 [INFO    ] scheduler — [RealTime] Initializing Real-Time Market Monitor Thread with batch writing...
+2026-03-20 11:17:21,907 [INFO    ] scheduler — [RealTime] Real-time monitor thread started successfully.
+2026-03-20 11:17:21,908 [INFO    ] scheduler — ============================================================
+2026-03-20 11:17:21,908 [INFO    ] scheduler — Scheduler configured:
+2026-03-20 11:17:21,909 [INFO    ] scheduler —   - Real-time monitoring: ACTIVE (background thread)
+2026-03-20 11:17:21,909 [INFO    ] scheduler —   - API Server: ACTIVE (127.0.0.1:8000 background thread)
+2026-03-20 11:17:21,909 [INFO    ] scheduler —   - A-Share analysis: 11:30, 14:50
+2026-03-20 11:17:21,909 [INFO    ] scheduler —   - HK-Share analysis: 11:30, 14:00, 15:50
+2026-03-20 11:17:21,909 [INFO    ] scheduler —   - T+1 rollover: 09:00
+2026-03-20 11:17:21,909 [INFO    ] scheduler — ============================================================
+2026-03-20 11:17:21,909 [INFO    ] scheduler — Press Ctrl+C to stop.
+2026-03-20 11:17:21,909 [INFO    ] scheduler — Running initial startup analysis for A & HK shares...
+2026-03-20 11:17:21,909 [INFO    ] scheduler — === A-Share Market Job Started ===
+2026-03-20 11:17:24,215 [INFO    ] scheduler — [API Server] Starting FastAPI on 0.0.0.0:8000
+2026-03-20 11:17:24,494 [INFO    ] main — Trading bot started | filter: ['A_SHARE'].

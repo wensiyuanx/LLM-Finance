@@ -68,15 +68,6 @@ class OrderExecutor:
             reason=reason
         )
         self.db.add(trade_record)
-        # Handle ETF tranches tracking
-        if action == TradeAction.BUY:
-            holding.tranches_count += 1
-        elif action == TradeAction.SELL:
-            if holding.quantity == 0:
-                holding.tranches_count = 0 # reset on full close
-            else:
-                # simplistic: if partial sell (e.g. grid take profit), reduce tranche count by 1
-                holding.tranches_count = max(1, holding.tranches_count - 1)
         
         self.db.commit()
         self.db.refresh(trade_record)

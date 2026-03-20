@@ -78,21 +78,22 @@ def save_klines_to_db(db, user_id: int, code: str, df: pd.DataFrame, timeframe: 
         logger.debug("Saved %d new %s K-line rows for %s", len(new_rows), timeframe, code)
 
     # --- Sliding Window Pruning ---
-    # Keep only the latest 360 records for this specific code/user/timeframe
+    # Keep only the latest records for this specific code/user/timeframe
     try:
-        # Find the threshold timestamp (the 360th record)
+        max_records = 5000 if timeframe == '60m' else 1500
+        # Find the threshold timestamp
         recent_klines = (
             db.query(KLineData.time_key)
             .filter(KLineData.user_id == user_id, KLineData.code == code, KLineData.timeframe == timeframe)
             .order_by(KLineData.time_key.desc())
-            .offset(359) # The 360th row
+            .offset(max_records - 1)
             .limit(1)
             .first()
         )
 
         if recent_klines:
             threshold_time = recent_klines.time_key
-            # Delete any record older than the 360th record
+            # Delete any record older than the threshold record
             db.query(KLineData).filter(
                 KLineData.user_id == user_id,
                 KLineData.code == code,
@@ -100,7 +101,7 @@ def save_klines_to_db(db, user_id: int, code: str, df: pd.DataFrame, timeframe: 
                 KLineData.time_key < threshold_time
             ).delete()
             db.commit()
-            logger.debug("Pruned %s K-line data for %s (kept latest 360)", timeframe, code)
+            logger.debug(f"Pruned {timeframe} K-line data for {code} (kept latest {max_records})")
     except Exception as e:
         db.rollback()
         logger.error("Error during %s K-line pruning for %s: %s", timeframe, code, e)
@@ -152,6 +153,7 @@ def update_holding_buy(db, holding: Holding, qty: float, price: float, is_t1: bo
     # If not T+1 (like HK), instantly sellable. Otherwise, delayed to next day.
     if not is_t1:
         holding.sellable_quantity = round(holding.sellable_quantity + qty, 6)
+    holding.tranches_count += 1
     db.commit()
 
 
@@ -163,6 +165,9 @@ def update_holding_sell(db, holding: Holding, qty: float):
         holding.quantity = 0.0
         holding.avg_cost = 0.0
         holding.sellable_quantity = 0.0
+        holding.tranches_count = 0
+    else:
+        holding.tranches_count = max(1, holding.tranches_count - 1)
     db.commit()
 
 def rollover_t1_holdings(db_session, user_id=None):
@@ -255,9 +260,16 @@ def run_trading_bot(market_filter=None):
         for (user_id, market_type), assets in user_market_assets.items():
             wallet = get_wallet(db_session, user_id, market_type)
             if not wallet:
+                logger.warning(f"No wallet found for User {user_id} - {market_type.name}. Skipping {len(assets)} assets.")
                 continue
                 
-            pm = PortfolioManager(db_session=db_session, current_cash=wallet.balance, max_position_pct=POSITION_SIZE_FRAC)
+            holdings = db_session.query(Holding).filter(
+                Holding.user_id == user_id, 
+                Holding.market_type == market_type
+            ).all()
+            holdings_value = sum(h.quantity * h.avg_cost for h in holdings)
+            total_value = wallet.balance + holdings_value
+            pm = PortfolioManager(db_session=db_session, current_cash=wallet.balance, total_value=total_value, max_position_pct=POSITION_SIZE_FRAC)
             signals_context = []
             asset_stats = {} 
             

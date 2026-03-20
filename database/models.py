@@ -105,3 +105,12 @@ class Holding(Base):
     tranches_count = Column(Integer, default=0) # Number of grid tranches (for ETF strategy)
     updated_at = Column(DateTime, default=get_beijing_time, onupdate=get_beijing_time)
     created_at = Column(DateTime, default=get_beijing_time)
+
+class BacktestRecord(Base):
+    __tablename__ = "backtest_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, default=1, index=True, nullable=False)
+    code = Column(String(50), index=True, nullable=False)
+    oss_url = Column(String(500), nullable=True)
+    created_at = Column(DateTime, default=get_beijing_time)

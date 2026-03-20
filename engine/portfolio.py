@@ -10,9 +10,10 @@ class PortfolioManager:
     - Overall market exposure
     Calculates specific position sizing (number of shares), accounting for Board Lots and T+1.
     """
-    def __init__(self, db_session, current_cash: float, max_position_pct: float = 0.25):
+    def __init__(self, db_session, current_cash: float, total_value: float = None, max_position_pct: float = 0.25):
         self.db = db_session
         self.current_cash = current_cash
+        self.total_value = total_value if total_value is not None else current_cash
         self.max_position_pct = max_position_pct
 
     def get_board_lot(self, code: str, market_type: MarketType) -> int:

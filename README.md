@@ -43,6 +43,7 @@
 | **🤖 自动化调度** | 全天候智能交易调度 | 多时间框架精准执行 |
 | **💎 资产管理** | T+1/T+0规则智能处理 | 仓位管理 + 资金分配 |
 | **📈 回测引擎** | 专业级策略回测平台 | Backtrader深度集成 |
+| **🌐 WebApi服务**| 自动化回测API接口 | FastAPI + Volcengine OSS 图床直传 |
 | **🔒 安全可靠** | 模拟交易 + 生产就绪 | 完善的异常处理机制 |
 
 ### 📊 性能指标
@@ -212,6 +213,8 @@
 外部接口:
   - Futu OpenAPI: 富途行情交易
   - WebSocket: 实时数据推送
+  - Volcengine TOS: 回测图像云存储
+  - FastAPI: WebApi 后端接口
 
 任务调度:
   - schedule: 定时任务
@@ -1414,6 +1417,38 @@ trade_record = executor.execute_trade(
     quantity=50,
     reason="触及止盈目标"
 )
+```
+
+#### FastAPI 回测生成接口
+
+内置了基于 `FastAPI` 的高性能 Web 端接口服务器 (`api_server.py`)，它已无缝集成在 `run_scheduler.py` 调度器内，随主程序启动即可访问。
+
+```bash
+# 默认监听端口
+# http://0.0.0.0:8000
+```
+
+**触发在线回测 (自动生成图表并上传 OSS)**:
+```bash
+curl -X POST "http://127.0.0.1:8000/api/backtest" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "code": "SZ.159915",
+           "days": 365,
+           "cash": 100000.0,
+           "strategy": "etf",
+           "user_id": 1
+         }'
+```
+
+**接口返回示例**:
+```json
+{
+    "status": "success",
+    "message": "Backtest completed and plot uploaded successfully.",
+    "record_id": 1,
+    "oss_url": "https://ark-auto-2102366935-cn-beijing-default.tos-cn-beijing.volces.com/data/uploads/SZ.159915_17345678_d4f3a2b1.png"
+}
 ```
 
 ---
