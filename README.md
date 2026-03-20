@@ -1425,12 +1425,15 @@ trade_record = executor.execute_trade(
 
 ```bash
 # 默认监听端口
-# http://0.0.0.0:8000
+# http://0.0.0.0:8069
 ```
 
-**触发在线回测 (自动生成图表并上传 OSS)**:
+> ⚠️ **重要**：回测耗时较长（数据拉取 + 计算 + 上传），因此接口设计为**异步任务队列模式**。
+> 提交后立即返回 `job_id`，需通过轮询接口查询最终结果。
+
+**Step 1 — 提交回测任务（立即返回，不阻塞）**:
 ```bash
-curl -X POST "http://127.0.0.1:8000/api/backtest" \
+curl -X POST "http://127.0.0.1:8069/api/backtest" \
      -H "Content-Type: application/json" \
      -d '{
            "code": "SZ.159915",
@@ -1441,14 +1444,57 @@ curl -X POST "http://127.0.0.1:8000/api/backtest" \
          }'
 ```
 
-**接口返回示例**:
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `code` | string | 资产代码，如 `SZ.159915`、`HK.02800` |
+| `days` | int | 回测天数，默认 `365` |
+| `cash` | float | 初始资金，默认 `100000.0` |
+| `strategy` | string | `"etf"` 或 `"standard"` |
+| `user_id` | int | 用户 ID，默认 `1` |
+
+立即返回（HTTP 202）:
 ```json
 {
-    "status": "success",
-    "message": "Backtest completed and plot uploaded successfully.",
-    "record_id": 1,
-    "oss_url": "https://ark-auto-2102366935-cn-beijing-default.tos-cn-beijing.volces.com/data/uploads/SZ.159915_17345678_d4f3a2b1.png"
+    "job_id": "abc12345-...",
+    "status": "pending",
+    "message": "Backtest job submitted. Poll /api/backtest/{job_id} for status.",
+    "poll_url": "/api/backtest/abc12345-..."
 }
+```
+
+**Step 2 — 轮询任务状态（每隔数秒查询一次）**:
+```bash
+curl "http://127.0.0.1:8069/api/backtest/{job_id}"
+```
+
+任务运行中:
+```json
+{ "job_id": "abc12345-...", "status": "running", "code": "SZ.159915" }
+```
+
+任务完成:
+```json
+{
+    "job_id": "abc12345-...",
+    "status": "done",
+    "record_id": 1,
+    "oss_url": "https://ark-auto-....volces.com/data/uploads/SZ.159915_xxx.png",
+    "message": "Backtest completed and plot uploaded successfully."
+}
+```
+
+任务失败:
+```json
+{ "job_id": "abc12345-...", "status": "error", "detail": "具体错误信息..." }
+```
+
+**其他接口**:
+```bash
+# 健康检查（确认 FutuOpenD 连接状态）
+curl http://127.0.0.1:8069/health
+
+# 查看所有任务列表
+curl http://127.0.0.1:8069/api/backtest
 ```
 
 ---

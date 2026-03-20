@@ -409,10 +409,23 @@ def start_api_server_thread():
     def run_server():
         import uvicorn
         from api_server import app
-        logger.info("[API Server] Starting FastAPI on 0.0.0.0:8000")
+        logger.info("[API Server] Starting FastAPI on 0.0.0.0:8069")
         os.environ['PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION'] = 'python'
+        
+        # Kill any existing process on port 8069 to prevent Address in Use error
+        import subprocess
         try:
-            uvicorn.run(app, host="0.0.0.0", port=8000, log_level="warning")
+            output = subprocess.check_output("lsof -t -i:8069", shell=True)
+            pids = output.decode("utf-8").strip().split()
+            for pid in pids:
+                if pid:
+                    subprocess.run(f"kill -9 {pid}", shell=True)
+                    logger.info(f"[API Server] Killed existing process {pid} holding port 8069")
+        except subprocess.CalledProcessError:
+            pass  # No process found
+
+        try:
+            uvicorn.run(app, host="0.0.0.0", port=8069, log_level="warning")
         except Exception as e:
             logger.error(f"[API Server] Error starting API Server: {e}")
 
@@ -461,7 +474,7 @@ def start_scheduler(batch_interval=5.0):
     logger.info("=" * 60)
     logger.info("Scheduler configured:")
     logger.info("  - Real-time monitoring: ACTIVE (background thread)")
-    logger.info("  - API Server: ACTIVE (127.0.0.1:8000 background thread)")
+    logger.info("  - API Server: ACTIVE (127.0.0.1:8069 background thread)")
     logger.info("  - A-Share analysis: 11:30, 14:50")
     logger.info("  - HK-Share analysis: 11:30, 14:00, 15:50")
     logger.info("  - T+1 rollover: 09:00")
