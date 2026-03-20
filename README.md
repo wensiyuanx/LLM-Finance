@@ -1,5 +1,5 @@
-# 🚀 富途量化交易机器人 V2.1.0
-## 专业级A股/港股智能交易系统
+<h1 align="center">🚀 富途量化交易机器人 V2.1.0</h1>
+<h2 align="center">专业级A股/港股智能交易系统</h2>
 
 <div align="center">
 
