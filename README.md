@@ -1,5 +1,5 @@
-<h1 align="center">🚀 富途量化交易机器人 V2.1.0</h1>
-<h2 align="center">专业级A股/港股智能交易系统</h2>
+<h1 align="center">🚀 保护伞量化交易机器人 V2.1.0</h1>
+<h2 align="center">专业为A股/港股打造的量化交易系统</h2>
 
 <div align="center">
 
@@ -1568,6 +1568,6 @@ curl http://127.0.0.1:8069/api/backtest
 
 **如果这个项目对您有帮助，请给个⭐️支持一下！**
 
-Made with ❤️ by Quant Team
+Made with ❤️ by NASASKY Quant Team
 
 </div>
