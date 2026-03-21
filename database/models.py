@@ -26,6 +26,7 @@ class AssetMonitor(Base):
     market_type = Column(Enum(MarketType), nullable=False)
     is_active = Column(Integer, default=1) # 1 for active, 0 for inactive
     is_etf = Column(Integer, default=0) # 1 for ETF, 0 for regular stock
+    is_leveraged = Column(Integer, default=0) # 1 for leveraged/inverse ETF, 0 for normal
     
     last_price = Column(Float, nullable=True) # Real-time price from websocket
     last_updated = Column(DateTime, nullable=True) # Last time price was updated

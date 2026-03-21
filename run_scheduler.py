@@ -249,12 +249,15 @@ class ATRStopLossHandler(StockQuoteHandlerBase):
                             # 1. Hard Stop-Loss check (e.g. -8%)
                             if profit_pct <= -0.08:
                                 logger.warning(f"🚨 [REAL-TIME STOP LOSS] {code} triggers hard stop loss! Cost: {avg_cost}, Price: {current_price}, P&L: {profit_pct*100:.2f}%")
-                                self._trigger_sell(code, current_price, "Real-time Hard Stop Loss (-8%)")
+                                # Apply 0.2% slippage to simulate limit-order execution instead of ideal market order
+                                exec_price = current_price * 0.998
+                                self._trigger_sell(code, exec_price, "Real-time Hard Stop Loss (-8%)")
 
                             # 2. Hard Take-Profit check (e.g. +15%)
                             elif profit_pct >= 0.15:
                                 logger.info(f"💰 [REAL-TIME TAKE PROFIT] {code} triggers hard take profit! Cost: {avg_cost}, Price: {current_price}, P&L: {profit_pct*100:.2f}%")
-                                self._trigger_sell(code, current_price, "Real-time Hard Take Profit (+15%)")
+                                exec_price = current_price * 0.998
+                                self._trigger_sell(code, exec_price, "Real-time Hard Take Profit (+15%)")
 
                 # Print a brief summary of received prices
                 if updates:

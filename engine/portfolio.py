@@ -18,15 +18,33 @@ class PortfolioManager:
         self.max_total_exposure_pct = max_total_exposure_pct
 
     def get_board_lot(self, code: str, market_type: MarketType) -> int:
-        """Helper to get accurate lot sizes. In real system, fetch from Futu."""
-        if market_type == MarketType.A_SHARE:
-            # STAR market / A-shares are strictly 100
-            return 100
-        elif market_type == MarketType.HK_SHARE:
-            # HK shares have variable lots. Mocking default 100.
-            # Real impl would cache Futu's get_market_snapshot lot_size
-            return 100
-        return 1
+        """
+        获取标的真实的每手股数。
+        实盘中必须调用 Futu API 的 get_stock_basicinfo。
+        """
+        if not hasattr(self, 'board_lots'):
+            self.board_lots = {}
+            
+        if code in self.board_lots:
+            return self.board_lots[code]
+            
+        try:
+            from data.futu_client import FutuClient
+            futu = FutuClient()
+            if futu.connect():
+                from futu import RET_OK
+                ret, data = futu.quote_ctx.get_stock_basicinfo(market=code.split('.')[0], stock_type='STOCK', code_list=[code])
+                futu.close()
+                if ret == RET_OK and not data.empty:
+                    lot_size = int(data['lot_size'].iloc[0])
+                    self.board_lots[code] = lot_size
+                    return lot_size
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to fetch real lot_size for {code}, defaulting to 100: {e}")
+            
+        return 100 # Fallback
 
     def evaluate_signals(self, signals_context: List[Dict]) -> List[dict]:
         """

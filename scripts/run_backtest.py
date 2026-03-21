@@ -87,7 +87,8 @@ def run_backtest(code, cash=100000.0, start_date="2025-01-01"):
     from scripts.backtest.backtrader_strategy import MultiTimeframeStrategy
     
     cerebro = bt.Cerebro()
-    cerebro.addstrategy(MultiTimeframeStrategy)
+    curr_market = 'HK' if code.startswith('HK.') else 'A'
+    cerebro.addstrategy(MultiTimeframeStrategy, market=curr_market)
     
     logger.info(f"Loading data for {code} from database...")
     
@@ -125,6 +126,7 @@ def run_backtest(code, cash=100000.0, start_date="2025-01-01"):
     
     cerebro.broker.setcash(cash)
     cerebro.broker.setcommission(commission=0.001)
+    cerebro.broker.set_slippage_perc(perc=0.002) # 0.2% slippage
     
     initial_value = cerebro.broker.getvalue()
     logger.info(f'Starting Portfolio Value: {initial_value:.2f}')

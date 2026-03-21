@@ -1,4 +1,3 @@
-
 import sys
 import os
 import argparse
@@ -6,66 +5,49 @@ import pandas as pd
 import logging
 from datetime import datetime, timedelta
 
-# Add project root to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sqlalchemy import text
 from database.db import engine, SessionLocal
-from database.models import MarketType
 from data.futu_client import FutuClient
 from main import save_klines_to_db, format_futu_df
 
-# Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 def fetch_and_save_data(code, days=550):
-    """
-    Checks if data exists in DB. If not, fetches from Futu/YFinance and saves it.
-    """
     end_date = datetime.now().strftime("%Y-%m-%d")
     start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
     
     logger.info(f"Checking data for {code} from {start_date} to {end_date}...")
     
-    # Check DB first
     query_check = f"SELECT count(*) as count FROM kline_data WHERE code='{code}' AND timeframe='60m'"
     try:
         df_check = pd.read_sql_query(query_check, engine)
         count = df_check['count'].iloc[0]
-        # Approximation: roughly 4 hourly candles per day * trading days (~0.7 of total days)
-        expected_candles = int(days * 0.7 * 4) * 0.9 # 10% buffer
+        expected_candles = int(days * 0.7 * 4) * 0.9
         if count > expected_candles:
-            logger.info(f"Found {count} records in DB (expected ~{expected_candles}). Skipping fresh fetch.")
+            logger.info(f"Found {count} records in DB. Skipping fresh fetch.")
             return True
-        else:
-            logger.info(f"Found {count} records, but expected ~{expected_candles}. Will fetch from API to ensure full history.")
     except Exception as e:
         logger.warning(f"DB check failed: {e}")
 
-    # Connect to data providers
     futu = FutuClient()
     connected = futu.connect()
     
     df_60m = None
-    
-    # Try Futu first
     if connected:
         from futu import KLType
         logger.info("Fetching from Futu...")
         df_60m = futu.get_historical_klines(code, start_date, end_date, ktype=KLType.K_60M)
-        
         if df_60m is not None: df_60m = format_futu_df(df_60m)
         futu.close()
     
     if df_60m is None or df_60m.empty:
-        logger.error("Failed to fetch data from all sources.")
+        logger.error("Failed to fetch data.")
         return False
         
-    # Save to DB
     session = SessionLocal()
     try:
-        # User ID 1 is default admin
         save_klines_to_db(session, 1, code, df_60m, timeframe='60m')
         logger.info(f"Successfully saved data for {code} to database.")
         return True
@@ -76,32 +58,32 @@ def fetch_and_save_data(code, days=550):
         session.close()
 
 def run_backtest(code, cash=100000.0, start_date=None):
-    """
-    Invokes the Backtrader ETF Grid strategy with the specified code.
-    """
     import backtrader as bt
-    from scripts.backtest.etf_grid_strategy import ETFGridMeanReversionStrategy
+    from scripts.backtest.lev_etf_strategy import LeveragedETFMomentumStrategy
     
     cerebro = bt.Cerebro()
     curr_market = 'HK' if code.startswith('HK.') else 'A'
-    cerebro.addstrategy(ETFGridMeanReversionStrategy, market=curr_market)
+    cerebro.addstrategy(LeveragedETFMomentumStrategy, market=curr_market)
     
     logger.info(f"Loading data for {code} from database...")
     
     query_60m = f"SELECT time_key, open_price as open, high_price as high, low_price as low, close_price as close, volume FROM kline_data WHERE code='{code}' AND timeframe='60m' ORDER BY time_key ASC"
+    query_day = f"SELECT time_key, open_price as open, high_price as high, low_price as low, close_price as close, volume FROM kline_data WHERE code='{code}' AND timeframe='1d' ORDER BY time_key ASC"
+    
     raw_conn = engine.raw_connection()
     try:
         df_60m = pd.read_sql_query(query_60m, raw_conn)
+        df_day = pd.read_sql_query(query_day, raw_conn)
     finally:
         raw_conn.close()
     
     if df_60m.empty:
-        logger.error("Data missing in database even after fetch attempt.")
+        logger.error("Data missing.")
         return
 
     df_60m['time_key'] = pd.to_datetime(df_60m['time_key'])
+    df_day['time_key'] = pd.to_datetime(df_day['time_key'])
     
-    # Data0: Hourly
     data0 = bt.feeds.PandasData(
         dataname=df_60m, datetime='time_key',
         open='open', high='high', low='low', close='close', volume='volume',
@@ -109,11 +91,17 @@ def run_backtest(code, cash=100000.0, start_date=None):
     )
     cerebro.adddata(data0)
     
-    # Remove Data1 as the ETF grid strategy only uses data0
+    if not df_day.empty:
+        data1 = bt.feeds.PandasData(
+            dataname=df_day, datetime='time_key',
+            open='open', high='high', low='low', close='close', volume='volume',
+            openinterest=-1, timeframe=bt.TimeFrame.Days, compression=1
+        )
+        cerebro.adddata(data1)
     
     cerebro.broker.setcash(cash)
     cerebro.broker.setcommission(commission=0.001)
-    cerebro.broker.set_slippage_perc(perc=0.002) # 0.2% slippage
+    cerebro.broker.set_slippage_perc(perc=0.002) # 0.2% slippage for leveraged ETFs is critical
     
     initial_value = cerebro.broker.getvalue()
     logger.info(f'Starting Portfolio Value: {initial_value:.2f}')
@@ -124,26 +112,22 @@ def run_backtest(code, cash=100000.0, start_date=None):
     final_value = cerebro.broker.getvalue()
     logger.info(f'Final Portfolio Value: {final_value:.2f}')
     
-    # Plotting logic
+    # Plotting
     try:
         import matplotlib
         matplotlib.use('Agg')
         import matplotlib.pyplot as plt
-        
-        output_file = f"etf_backtest_result_{code}.png"
-        output_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), output_file)
-        
-        # Font support
         import platform
         font_prop = 'Heiti TC' if platform.system() == 'Darwin' else 'SimHei'
         
-        # Adjust figure to accommodate the table below
+        output_file = f"lev_etf_backtest_result_{code}.png"
+        output_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), output_file)
+        
         fig, (ax_chart, ax_table) = plt.subplots(2, 1, figsize=(14, 12), gridspec_kw={'height_ratios': [2, 1]})
         
         all_timestamps = [bt.num2date(x) for x in cerebro.datas[0].datetime.array]
         all_closes = cerebro.datas[0].close.array
         
-        # Filter for display if start_date provided
         if start_date:
             display_start = datetime.strptime(start_date, "%Y-%m-%d")
             plot_indices = [i for i, ts in enumerate(all_timestamps) if ts >= display_start]
@@ -152,39 +136,43 @@ def run_backtest(code, cash=100000.0, start_date=None):
                 closes = [all_closes[i] for i in plot_indices]
             else:
                 timestamps, closes = all_timestamps, all_closes
+                plot_indices = None # Explicitly set to None to avoid unbound local error
         else:
             timestamps, closes = all_timestamps, all_closes
+            plot_indices = None
 
         ax_chart.plot(timestamps, closes, label='价格 (小时线)', color='blue', alpha=0.6)
         
         if strategy_instance.buy_markers:
-            buy_markers = strategy_instance.buy_markers
-            if start_date:
-                buy_markers = [m for m in buy_markers if m[0] >= display_start]
+            buy_markers = [m for m in strategy_instance.buy_markers if m[0] >= display_start] if start_date else strategy_instance.buy_markers
             if buy_markers:
                 buy_dates, buy_prices = zip(*buy_markers)
-                ax_chart.scatter(buy_dates, buy_prices, marker='^', color='green', s=100, label='买入', zorder=5)
+                ax_chart.scatter(buy_dates, buy_prices, marker='^', color='green', s=100, label='突破买入', zorder=5)
             
         if strategy_instance.sell_markers:
-            sell_markers = strategy_instance.sell_markers
-            if start_date:
-                sell_markers = [m for m in sell_markers if m[0] >= display_start]
+            sell_markers = [m for m in strategy_instance.sell_markers if m[0] >= display_start] if start_date else strategy_instance.sell_markers
             if sell_markers:
                 sell_dates, sell_prices = zip(*sell_markers)
-                ax_chart.scatter(sell_dates, sell_prices, marker='v', color='red', s=100, label='卖出', zorder=5)
+                ax_chart.scatter(sell_dates, sell_prices, marker='v', color='red', s=100, label='风控止盈/损', zorder=5)
         
-        # Calculations for Title
         return_pct = (final_value - initial_value) / initial_value * 100
-        first_price = closes[0]
-        last_price = closes[-1]
+        
+        # FIX: Calculate asset return exactly matching the displayed chart period
+        if plot_indices is not None and len(plot_indices) > 0:
+            first_price = closes[0] # closes is already sliced above
+            last_price = closes[-1]
+        elif len(closes) > 0:
+            first_price = closes[0]
+            last_price = closes[-1]
+        else:
+            first_price = 1
+            last_price = 1
+            
         asset_return_pct = (last_price - first_price) / first_price * 100
-        max_deployed = getattr(strategy_instance, 'max_capital_deployed', 0.0)
-        max_deployed_pct = (max_deployed / initial_value) * 100
 
-        title = (f'回测结果 - {code}\n'
+        title = (f'杠杆ETF专用动量策略回测 - {code}\n'
                  f'策略收益: {return_pct:.2f}% | 标的收益: {asset_return_pct:.2f}%\n'
-                 f'交易次数: {strategy_instance.trade_count} | 最终净值: {final_value:.2f}\n'
-                 f'最大资金动用: {max_deployed:.2f} ({max_deployed_pct:.2f}%)')
+                 f'交易次数: {strategy_instance.trade_count} | 最终净值: {final_value:.2f}')
         
         ax_chart.set_title(title, fontproperties=font_prop, fontsize=14)
         ax_chart.set_xlabel('日期', fontproperties=font_prop)
@@ -192,38 +180,21 @@ def run_backtest(code, cash=100000.0, start_date=None):
         ax_chart.grid(True, alpha=0.3)
         ax_chart.legend(prop={'family': font_prop})
         
-        # --- Add Trade Details Table ---
         ax_table.axis('off')
         if hasattr(strategy_instance, 'trade_log') and strategy_instance.trade_log:
-            trades = strategy_instance.trade_log
-            if start_date:
-                trades = [t for t in trades if t['date'] >= display_start]
-            
-            # Show last 30 trades for context
+            trades = [t for t in strategy_instance.trade_log if t['date'] >= display_start] if start_date else strategy_instance.trade_log
             display_trades = trades[-30:]
-            table_data = []
-            for t in display_trades:
-                # Format: Date, Action, Price, Qty, Reason
-                table_data.append([
-                    t['date'].strftime("%Y-%m-%d %H:%M"),
-                    "买入" if t['action'] == "BUY" else "卖出",
-                    f"{t['price']:.3f}",
-                    str(abs(t['qty'])),
-                    t['reason']
-                ])
+            table_data = [[t['date'].strftime("%Y-%m-%d %H:%M"), "买入" if t['action'] == "BUY" else "卖出", f"{t['price']:.3f}", str(abs(t['qty'])), t['reason']] for t in display_trades]
             
             if table_data:
-                col_labels = ["时间", "动作", "价格", "数量", "原因"]
-                the_table = ax_table.table(cellText=table_data, colLabels=col_labels, loc='center', cellLoc='center')
+                the_table = ax_table.table(cellText=table_data, colLabels=["时间", "动作", "价格", "数量", "原因"], loc='center', cellLoc='center')
                 the_table.auto_set_font_size(False)
                 the_table.set_fontsize(10)
                 the_table.scale(1.0, 1.5)
-                # Apply font to table cells
                 for key, cell in the_table.get_celld().items():
                     cell.set_text_props(fontproperties=font_prop)
         
         plt.tight_layout()
-        
         plt.savefig(output_path, dpi=300)
         logger.info(f"Plot saved to {output_path}")
         
@@ -231,17 +202,12 @@ def run_backtest(code, cash=100000.0, start_date=None):
         logger.error(f"Plotting failed: {e}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run backtest for a specific stock code.")
-    parser.add_argument("code", type=str, help="Stock code (e.g., HK.00700, SZ.159915)")
-    parser.add_argument("--days", type=int, default=550, help="Days of history to fetch (default: 550)")
-    parser.add_argument("--start_date", type=str, default="2025-01-01", help="Backtest start date (YYYY-MM-DD, default: 2025-01-01)")
-    parser.add_argument("--cash", type=float, default=100000.0, help="Initial cash (default: 100000)")
+    parser = argparse.ArgumentParser(description="Run Leveraged ETF backtest.")
+    parser.add_argument("code", type=str, help="Stock code (e.g., HK.07226)")
+    parser.add_argument("--days", type=int, default=550)
+    parser.add_argument("--start_date", type=str, default="2025-01-01")
+    parser.add_argument("--cash", type=float, default=100000.0)
     
     args = parser.parse_args()
-    
-    # 1. Fetch Data
-    success = fetch_and_save_data(args.code, args.days)
-    
-    # 2. Run Backtest
-    if success:
+    if fetch_and_save_data(args.code, args.days):
         run_backtest(args.code, args.cash, start_date=args.start_date)

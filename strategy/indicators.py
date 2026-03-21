@@ -9,6 +9,9 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
     if df is None or df.empty:
         return df
 
+    # Forward fill to handle missing data or suspended trading hours
+    df = df.ffill()
+
     # Example: Calculate Moving Averages
     df['SMA_5'] = ta.sma(df['close'], length=5)
     df['SMA_20'] = ta.sma(df['close'], length=20)

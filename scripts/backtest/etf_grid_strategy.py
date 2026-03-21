@@ -66,6 +66,7 @@ class ETFGridMeanReversionStrategy(bt.Strategy):
                 self.buy_tranches.append((order.executed.price, order.executed.size))
                 self.buy_markers.append((dt, order.executed.price))
                 self.trade_count += 1
+                self.last_buy_date = dt.date()
                 
                 # 记录最大资金动用量 (持仓数量 * 当前价格，或按成本计算均可)
                 # 这里我们记录持有的总成本
@@ -115,6 +116,12 @@ class ETFGridMeanReversionStrategy(bt.Strategy):
             sell_reason = ""
             sell_size = 0
             
+            current_date = self.datas[0].datetime.date(0)
+            if self.params.market == 'HK':
+                can_sell = True
+            else:
+                can_sell = getattr(self, 'last_buy_date', None) != current_date
+            
             # --- 核心改进：动态跟踪止盈 ---
             
             # 如果当前利润已经超过目标利润 (4%)，开启/更新 跟踪止盈
@@ -154,9 +161,12 @@ class ETFGridMeanReversionStrategy(bt.Strategy):
                     sell_reason = f"网格分批止盈 (+{tranche_profit*100:.1f}%)"
                 
             if sell_signal and sell_size > 0:
-                self.order = self.sell(size=sell_size)
-                self.order.reason = sell_reason
-                print(f"{dt} - 触发卖出: {sell_reason}, 均价: {avg_cost:.3f} -> {current_price:.3f}, 数量: {sell_size}")
+                if can_sell:
+                    self.order = self.sell(size=sell_size)
+                    self.order.reason = sell_reason
+                    print(f"{dt} - 触发卖出: {sell_reason}, 均价: {avg_cost:.3f} -> {current_price:.3f}, 数量: {sell_size}")
+                else:
+                    print(f"{dt} - 卖出信号被忽略 (T+1 限制): {sell_reason}")
                 return
 
         # 2. 买入逻辑 (左侧网格建仓)

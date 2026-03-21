@@ -15,6 +15,7 @@ logging.handlers.TimedRotatingFileHandler = MockFileHandler
 
 from futu import OpenQuoteContext, OpenHKTradeContext, TrdEnv, KLType, AuType, RET_OK, RET_ERROR
 from dotenv import load_dotenv
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 load_dotenv()
 
@@ -50,6 +51,7 @@ class FutuClient:
         if self.trade_ctx:
             self.trade_ctx.close()
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=False)
     def get_historical_klines(self, code, start_date, end_date, ktype=KLType.K_60M, autype=AuType.QFQ):
         """
         Fetch historical K-lines with automatic pagination.
@@ -70,7 +72,7 @@ class FutuClient:
             )
             if ret != RET_OK:
                 print(f"Request history kline failed: {data}")
-                return None
+                raise Exception(f"Futu API Error: {data}")
 
             all_pages.append(data)
 

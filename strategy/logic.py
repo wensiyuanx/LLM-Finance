@@ -2,23 +2,26 @@ import pandas as pd
 from database.models import TradeAction
 from strategy.indicators import calculate_indicators
 
-def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_position: float = 0.0, avg_cost: float = 0.0, code: str = None, is_trend_position: bool = False, highest_price: float = 0.0) -> tuple[TradeAction, str, float, bool]:
+def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_position: float = 0.0, avg_cost: float = 0.0, code: str = None, is_trend_position: bool = False, highest_price: float = 0.0, is_pre_close: bool = False) -> tuple[TradeAction, str, float, bool]:
     """
     Analyzes K-line data using a Multi-Timeframe (MTF) approach.
     Uses Daily data (df_day) to define the macro trend (Direction filter).
     Uses Hourly data (df_60m) to trigger precise entries and exits.
+    is_pre_close: if True, indicates the last 60m bar is incomplete (e.g. 14:50), so volume checks are scaled.
     """
     if df_60m is None or df_60m.empty:
-        return TradeAction.HOLD, "无有效小时线数据"
+        return TradeAction.HOLD, "无有效小时线数据", 0.0, False
 
-    # Calculate indicators for 60M
-    df_60m = calculate_indicators(df_60m)
+    # Assumes calculate_indicators has already been called on df_60m before passing it here
+    if 'SMA_5' not in df_60m.columns:
+        df_60m = calculate_indicators(df_60m)
     score = 0.0
     
     # Calculate indicators for Daily if provided
     daily_trend_up = True # Default to True if no daily data
     if df_day is not None and not df_day.empty:
-        df_day = calculate_indicators(df_day)
+        if 'SMA_50' not in df_day.columns:
+            df_day = calculate_indicators(df_day)
         if len(df_day) > 0:
             latest_day = df_day.iloc[-1]
             daily_close = latest_day['close']
@@ -94,7 +97,11 @@ def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_
             if pd.notna(sma5_latest) and pd.notna(sma20_latest):
                 if sma5_prev <= sma20_prev and sma5_latest > sma20_latest:
                     # Require Volume Confirmation for Golden Crosses
-                    if 'volume' in latest and 'VOL_SMA_5' in latest and latest['volume'] > latest['VOL_SMA_5']:
+                    current_vol = latest['volume']
+                    if is_pre_close:
+                        current_vol *= 1.2 # Scale up for missing 10 mins (50/60)
+                        
+                    if 'volume' in latest and 'VOL_SMA_5' in latest and current_vol > latest['VOL_SMA_5']:
                         buy_signals.append("小时线均线金叉且放量")
 
         # 2. RSI Logic (Hourly Oversold Dip Buying)
@@ -175,16 +182,21 @@ def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_
 
     return TradeAction.HOLD, "无明确可执行信号 (观望/持仓)", 0.0, False
 
-def generate_grid_trend_signals(df_60m: pd.DataFrame, current_position: float = 0.0, avg_cost: float = 0.0, tranches_count: int = 0, is_trend_position: bool = False, highest_price: float = 0.0) -> tuple[TradeAction, str, float, bool]:
+def generate_grid_trend_signals(df_60m: pd.DataFrame, current_position: float = 0.0, avg_cost: float = 0.0, tranches_count: int = 0, is_trend_position: bool = False, highest_price: float = 0.0, is_pre_close: bool = False) -> tuple[TradeAction, str, float, bool]:
     """
     统一的“网格+趋势”激进策略：结合左侧超跌网格建模与右侧右侧趋势追入。
     适用于 ETF 和绩优蓝筹股。
     Returns: (TradeAction, Reason, Score, is_trend_entry)
     """
     if df_60m is None or df_60m.empty:
-        return TradeAction.HOLD, "无有效小时线数据", 0.0
+        return TradeAction.HOLD, "无有效小时线数据", 0.0, False
 
-    df_60m = calculate_indicators(df_60m)
+    # Assumes calculate_indicators has already been called on df_60m before passing it here
+    if 'SMA_5' not in df_60m.columns:
+        df_60m = calculate_indicators(df_60m)
+        
+    if df_day is not None and not df_day.empty and 'SMA_50' not in df_day.columns:
+        df_day = calculate_indicators(df_day)
     
     if len(df_60m) > 250:
         df_60m = df_60m.iloc[-250:].copy()

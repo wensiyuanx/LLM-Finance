@@ -199,6 +199,46 @@ def rollover_t1_holdings(db_session, user_id=None):
 
 from engine.portfolio import PortfolioManager
 
+class StrategyRouter:
+    """Registry pattern for routing assets to appropriate strategies"""
+    
+    @staticmethod
+    def get_strategy_signals(asset, klines_60m, klines_day, holding, is_pre_close):
+        code = asset.code
+        is_etf_asset = getattr(asset, 'is_etf', False)
+        is_leveraged = getattr(asset, 'is_leveraged', False)
+        
+        if is_etf_asset:
+            if is_leveraged:
+                logger.info(f"[{code}] Routing to Leveraged ETF Momentum Strategy")
+                from strategy.lev_etf_logic import generate_leveraged_etf_signals
+                return generate_leveraged_etf_signals(
+                    klines_60m, df_day=klines_day, current_position=holding.quantity,
+                    avg_cost=holding.avg_cost, highest_price=holding.highest_price,
+                    tranches_count=holding.tranches_count, last_buy_price=holding.avg_cost,
+                    is_pre_close=is_pre_close
+                )
+            else:
+                logger.info(f"[{code}] Routing to Aggressive ETF Strategy (Grid+Trend)")
+                from strategy.logic import generate_grid_trend_signals
+                return generate_grid_trend_signals(
+                    klines_60m, current_position=holding.quantity,
+                    avg_cost=holding.avg_cost, tranches_count=holding.tranches_count,
+                    is_trend_position=bool(holding.is_trend),
+                    highest_price=holding.highest_price,
+                    is_pre_close=is_pre_close
+                )
+        else:
+            logger.info(f"[{code}] Routing to Standard Stock Strategy (MTF)")
+            from strategy.logic import generate_signals
+            return generate_signals(
+                klines_60m, df_day=klines_day, current_position=holding.quantity,
+                avg_cost=holding.avg_cost, code=code,
+                is_trend_position=bool(holding.is_trend),
+                highest_price=holding.highest_price,
+                is_pre_close=is_pre_close
+            )
+
 def rollover_t1_holdings_task():
     """Independent task to rollover T+1 holdings in the morning."""
     session = SessionLocal()
@@ -252,10 +292,29 @@ def run_trading_bot(market_filter=None):
             df_60m = None
             if futu_connected:
                 from futu import KLType
+                
+                # Optimize Data Fetching: Check DB for latest record to avoid fetching 550 days every time
+                latest_db_time = None
+                try:
+                    from sqlalchemy import text
+                    result = db_session.execute(text(f"SELECT MAX(time_key) FROM kline_data WHERE code='{asset.code}' AND timeframe='60m'"))
+                    latest_db_time = result.scalar()
+                except Exception as e:
+                    logger.warning(f"Failed to query latest db time for {asset.code}: {e}")
+
+                if latest_db_time:
+                    # If we have data, only fetch from the latest time minus a small overlap (e.g. 10 days for indicator safety)
+                    latest_dt = pd.to_datetime(latest_db_time)
+                    start_date_fetch = (latest_dt - timedelta(days=10)).strftime("%Y-%m-%d")
+                    logger.info(f"Incremental fetch for {asset.code} starting from {start_date_fetch}")
+                else:
+                    start_date_fetch = start_date
+                    logger.info(f"Full fetch for {asset.code} starting from {start_date_fetch}")
+
                 # Fetch daily data
-                df_day = futu.get_historical_klines(asset.code, start_date=start_date, end_date=end_date, ktype=KLType.K_DAY)
+                df_day = futu.get_historical_klines(asset.code, start_date=start_date_fetch, end_date=end_date, ktype=KLType.K_DAY)
                 # Fetch 60M data
-                df_60m = futu.get_historical_klines(asset.code, start_date=start_date, end_date=end_date, ktype=KLType.K_60M)
+                df_60m = futu.get_historical_klines(asset.code, start_date=start_date_fetch, end_date=end_date, ktype=KLType.K_60M)
                 
                 if df_day is not None:
                     df_day = format_futu_df(df_day)
@@ -312,14 +371,18 @@ def run_trading_bot(market_filter=None):
                     logger.warning(f"No complete K-line data fetched for {code}.")
                     continue
                     
+                from strategy.indicators import calculate_indicators
+                # Pre-calculate indicators ONCE to avoid duplicate work in strategy logic
+                klines_60m = calculate_indicators(klines_60m)
+                klines_day = calculate_indicators(klines_day)
+                
                 # Save data to DB 
                 save_klines_to_db(db_session, user_id, code, klines_day, timeframe='1d')
                 save_klines_to_db(db_session, user_id, code, klines_60m, timeframe='60m')
 
                 try:
-                    from strategy.indicators import calculate_indicators
                     # Visualizer can just chart the hourly data for now
-                    chart_df = calculate_indicators(klines_60m.copy())
+                    chart_df = klines_60m.copy()
                     generate_kline_chart(chart_df, code)
                 except Exception as viz_e:
                     logger.error(f"Failed to generate chart for {code}: {viz_e}")
@@ -340,24 +403,18 @@ def run_trading_bot(market_filter=None):
                         logger.info(f"[{code}] New highest price recorded: {holding.highest_price}")
                     db_session.commit()
 
-                # Use distinct strategies for ETFs and Stocks
-                is_etf_asset = getattr(asset, 'is_etf', False)
-                if is_etf_asset:
-                    logger.info(f"[{code}] Routing to Aggressive ETF Strategy (Grid+Trend)")
-                    action, reason, score, is_trend_entry = generate_grid_trend_signals(
-                        klines_60m, current_position=holding.quantity,
-                        avg_cost=holding.avg_cost, tranches_count=holding.tranches_count,
-                        is_trend_position=bool(holding.is_trend),
-                        highest_price=holding.highest_price
-                    )
-                else:
-                    logger.info(f"[{code}] Routing to Standard Stock Strategy (MTF)")
-                    action, reason, score, is_trend_entry = generate_signals(
-                        klines_60m, df_day=klines_day, current_position=holding.quantity,
-                        avg_cost=holding.avg_cost, code=code,
-                        is_trend_position=bool(holding.is_trend),
-                        highest_price=holding.highest_price
-                    )
+                # Check if it's pre-close (e.g. 14:50 for A-share, 15:50 for HK)
+                now_time = datetime.now()
+                is_pre_close = False
+                if market_type == MarketType.A_SHARE and now_time.hour == 14 and now_time.minute >= 40:
+                    is_pre_close = True
+                elif market_type == MarketType.HK_SHARE and now_time.hour == 15 and now_time.minute >= 40:
+                    is_pre_close = True
+
+                # Delegate to Strategy Router
+                action, reason, score, is_trend_entry = StrategyRouter.get_strategy_signals(
+                    asset, klines_60m, klines_day, holding, is_pre_close
+                )
                 latest_close = float(klines_60m['close'].iloc[-1])
                 logger.info("[%s] Signal: %s — %s (Sellable: %s, Score: %.1f)", code, action.name, reason, holding.sellable_quantity, score)
                 save_signal_to_db(db_session, user_id, code, action, reason, latest_close)
@@ -399,7 +456,8 @@ def run_trading_bot(market_filter=None):
                 code = order['code']
                 action = order['action']
                 qty = order['quantity']
-                price = order['price']
+                # Add 0.2% slippage to simulate limit-order execution
+                price = order['price'] * 1.002 if action == TradeAction.BUY else order['price'] * 0.998
                 reason = order['reason']
                 holding = asset_stats[code]['holding']
                 

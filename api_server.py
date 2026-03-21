@@ -14,6 +14,7 @@ from database.models import BacktestRecord
 # For running existing backtest logic
 from scripts.run_etf_backtest import fetch_and_save_data as etf_fetch, run_backtest as etf_backtest
 from scripts.run_backtest import fetch_and_save_data as std_fetch, run_backtest as std_backtest
+from scripts.run_lev_etf_backtest import fetch_and_save_data as lev_fetch, run_backtest as lev_backtest
 
 app = FastAPI(title="LLM-Finance Backtest API")
 
@@ -40,7 +41,7 @@ class BacktestRequest(BaseModel):
     code: str
     days: int = 365
     cash: float = 100000.0
-    strategy: str = "etf"  # "etf" or "standard"
+    strategy: str = "etf"  # "etf" or "standard" or "leveraged"
     user_id: int = 1
 
 
@@ -66,6 +67,12 @@ def run_backtest_job(job_id: str, req: BacktestRequest):
                 raise RuntimeError("Failed to fetch data for ETF backtest. Check that FutuOpenD is running.")
             etf_backtest(code, req.cash)
             local_plot_file = f"etf_backtest_result_{code}.png"
+        elif strategy == "leveraged":
+            success = lev_fetch(code, req.days)
+            if not success:
+                raise RuntimeError("Failed to fetch data for Leveraged ETF backtest. Check that FutuOpenD is running.")
+            lev_backtest(code, req.cash)
+            local_plot_file = f"lev_etf_backtest_result_{code}.png"
         else:
             success = std_fetch(code, req.days)
             if not success:

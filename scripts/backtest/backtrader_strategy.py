@@ -24,6 +24,7 @@ class MultiTimeframeStrategy(bt.Strategy):
         ('atr_take_profit_mult', 3.0), 
         ('fixed_stop_loss', -0.08),  
         ('fixed_take_profit', 0.15), 
+        ('market', 'A'),         # 'A' for T+1, 'HK' for T+0
     )
 
     def __init__(self):
@@ -78,6 +79,7 @@ class MultiTimeframeStrategy(bt.Strategy):
                 self.buyprice = order.executed.price
                 self.buy_markers.append((dt, order.executed.price))
                 self.trade_count += 1
+                self.last_buy_date = dt.date()
             elif order.issell():
                 self.buyprice = None
                 self.sell_markers.append((dt, order.executed.price))
@@ -131,11 +133,12 @@ class MultiTimeframeStrategy(bt.Strategy):
 
         # Daily Trend Filter
         # Strict macro filter: only buy when daily price is above 50-day SMA
-        daily_trend_up = self.daily_close[0] > self.daily_sma_trend[0]
+        # FIX: Look-ahead bias. Use [-1] to ensure we only use the completed daily bar from yesterday
+        daily_trend_up = self.daily_close[-1] > self.daily_sma_trend[-1]
         
         # Hourly Strong Trend Filter (for exit rules)
-        # Relaxed ADX filter for A-share ETFs which tend to be more volatile/choppy
-        in_strong_trend = self.daily_adx.adx[0] > 15
+        # FIX: Look-ahead bias. Use [-1]
+        in_strong_trend = self.daily_adx.adx[-1] > 15
 
         buy_signal = False
         sell_signal = False
@@ -174,7 +177,7 @@ class MultiTimeframeStrategy(bt.Strategy):
         # SELL LOGIC: Take profits and cut losses (Independent of daily trend)
         if self.position:
             # Check if we are in an extremely strong daily trend (relax sell rules)
-            is_extreme_trend = self.daily_adx.adx[0] > 30
+            is_extreme_trend = self.daily_adx.adx[-1] > 30
             
             # 1. Take Profit: Hit upper Bollinger Band
             if current_price >= self.boll.lines.top[0] and not in_strong_trend and not is_extreme_trend:
@@ -214,6 +217,14 @@ class MultiTimeframeStrategy(bt.Strategy):
             print(f"{self.datas[0].datetime.datetime(0)} - 信号冲突 (Buy+Sell), 观望")
             return
 
+        current_date = self.datas[0].datetime.date(0)
+        
+        # HK market is T+0, A-share is T+1
+        if self.params.market == 'HK':
+            can_sell = True
+        else:
+            can_sell = getattr(self, 'last_buy_date', None) != current_date
+
         if not self.position:
             if buy_signal:
                 cash = self.broker.getcash()
@@ -224,8 +235,11 @@ class MultiTimeframeStrategy(bt.Strategy):
                     self.order = self.buy(size=qty)
         else:
             if sell_signal:
-                print(f"{self.datas[0].datetime.datetime(0)} - SELL SIGNAL at {current_price:.2f}, Reason: {sell_reason}")
-                self.order = self.sell(size=self.position.size)
+                if can_sell:
+                    print(f"{self.datas[0].datetime.datetime(0)} - SELL SIGNAL at {current_price:.2f}, Reason: {sell_reason}")
+                    self.order = self.sell(size=self.position.size)
+                else:
+                    print(f"{self.datas[0].datetime.datetime(0)} - SELL SIGNAL IGNORED due to T+1 restriction.")
 
 if __name__ == "__main__":
     import sys
@@ -270,6 +284,7 @@ if __name__ == "__main__":
         
         cerebro.broker.setcash(100000.0)
         cerebro.broker.setcommission(commission=0.001)
+        cerebro.broker.set_slippage_perc(perc=0.002) # 0.2% slippage
         
         print('Starting Portfolio Value: %.2f' % cerebro.broker.getvalue())
         cerebro.run()
