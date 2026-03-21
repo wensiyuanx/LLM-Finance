@@ -276,7 +276,19 @@ def run_trading_bot(market_filter=None):
             ).all()
             holdings_value = sum(h.quantity * h.avg_cost for h in holdings)
             total_value = wallet.balance + holdings_value
-            pm = PortfolioManager(db_session=db_session, current_cash=wallet.balance, total_value=total_value, max_position_pct=POSITION_SIZE_FRAC)
+            
+            # Global exposure limit: 90% (Keep 10% Cash Reserve)
+            max_exposure = 0.90
+            logger.info("Portfolio Status | Value: %.2f | Cash: %.2f | Exposure: %.1f%% | Limit: %.1f%%",
+                        total_value, wallet.balance, (holdings_value/total_value if total_value > 0 else 0)*100, max_exposure*100)
+            
+            pm = PortfolioManager(
+                db_session=db_session, 
+                current_cash=wallet.balance, 
+                total_value=total_value, 
+                max_position_pct=POSITION_SIZE_FRAC,
+                max_total_exposure_pct=max_exposure
+            )
             signals_context = []
             asset_stats = {} 
             
@@ -317,10 +329,16 @@ def run_trading_bot(market_filter=None):
                 current_price = float(klines_60m['close'].iloc[-1])
                 
                 # Update highest price for all assets (for trailing stop)
-                if holding.quantity > 0 and (holding.highest_price == 0 or current_price > holding.highest_price):
-                    holding.highest_price = current_price
+                # For existing positions with 0 highest_price, only init if profitable to avoid premature stops
+                if holding.quantity > 0:
+                    if holding.highest_price == 0:
+                        if current_price > holding.avg_cost:
+                            holding.highest_price = current_price
+                            logger.info(f"[{code}] Initialized highest price at profit peak: {holding.highest_price}")
+                    elif current_price > holding.highest_price:
+                        holding.highest_price = current_price
+                        logger.info(f"[{code}] New highest price recorded: {holding.highest_price}")
                     db_session.commit()
-                    logger.info(f"[{code}] New highest price recorded: {holding.highest_price}")
 
                 # Use distinct strategies for ETFs and Stocks
                 is_etf_asset = getattr(asset, 'is_etf', False)
@@ -363,11 +381,18 @@ def run_trading_bot(market_filter=None):
                         'score': score,
                         'is_trend_entry': is_trend_entry,
                         'is_etf': is_etf_asset,
-                        'tranches_count': holding.tranches_count
+                        'tranches_count': holding.tranches_count,
+                        'current_holding_val': holding.quantity * latest_close
                     })
 
             # Portfolio Manager resolution
             executable_orders = pm.evaluate_signals(signals_context)
+            
+            # Log skipped signals if any
+            executed_codes = {o['code'] for o in executable_orders}
+            for ctx in signals_context:
+                if ctx['code'] not in executed_codes:
+                    logger.info("[%s] Signal SKIPPED by PortfolioManager (Reason: Capital Limit or Max Allocation)", ctx['code'])
             
             # Execute actual evaluated orders
             for order in executable_orders:
@@ -418,4 +443,5 @@ def run_trading_bot(market_filter=None):
         db_session.close()
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)-8s] %(name)s — %(message)s")
     run_trading_bot()

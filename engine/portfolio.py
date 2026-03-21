@@ -10,11 +10,12 @@ class PortfolioManager:
     - Overall market exposure
     Calculates specific position sizing (number of shares), accounting for Board Lots and T+1.
     """
-    def __init__(self, db_session, current_cash: float, total_value: float = None, max_position_pct: float = 0.25):
+    def __init__(self, db_session, current_cash: float, total_value: float = None, max_position_pct: float = 0.25, max_total_exposure_pct: float = 0.90):
         self.db = db_session
         self.current_cash = current_cash
         self.total_value = total_value if total_value is not None else current_cash
         self.max_position_pct = max_position_pct
+        self.max_total_exposure_pct = max_total_exposure_pct
 
     def get_board_lot(self, code: str, market_type: MarketType) -> int:
         """Helper to get accurate lot sizes. In real system, fetch from Futu."""
@@ -35,6 +36,10 @@ class PortfolioManager:
         """
         executable_orders = []
         
+        # Track total exposure
+        current_held_val = self.total_value - self.current_cash
+        max_allowed_held_val = self.total_value * self.max_total_exposure_pct
+        
         # Sort signals by score descending (highest priority first)
         # Sell signals should have absolute highest priority to free up cash
         signals_context.sort(key=lambda x: x.get('score', 0.0) if x['action'] == TradeAction.BUY else float('inf'), reverse=True)
@@ -54,7 +59,9 @@ class PortfolioManager:
                     "reason": ctx['reason']
                 })
                 # Pseudo cash increment (ignoring commissions for now)
-                self.current_cash += (sellable_qty * ctx['price'])
+                proceeds = sellable_qty * ctx['price']
+                self.current_cash += proceeds
+                current_held_val -= proceeds
                 
         # Process Buys
         for ctx in signals_context:
@@ -63,7 +70,6 @@ class PortfolioManager:
                 if is_etf:
                     # 根据市场设置不同首仓比例（仅限 ETF）
                     market_type = ctx.get('market_type')
-                    from database.models import MarketType
                     if market_type == MarketType.HK_SHARE:
                         allocation_map = {0: 0.50, 1: 0.20, 2: 0.15, 3: 0.15}
                     else:
@@ -77,8 +83,21 @@ class PortfolioManager:
                     target_allocation = self.total_value * target_ratio
                 else:
                     # 普通股票维持标准仓位比例 (如 25%)
+                    # Check if already holding enough
+                    current_holding_val = ctx.get('current_holding_val', 0.0)
                     target_allocation = self.total_value * self.max_position_pct
+                    if current_holding_val >= target_allocation * 0.95:
+                        continue
                 
+                # --- Global Exposure Check ---
+                remaining_exposure_quota = max_allowed_held_val - current_held_val
+                if remaining_exposure_quota <= 0:
+                    # Global limit reached
+                    continue
+                
+                # Allocation must not exceed global quota
+                target_allocation = min(target_allocation, remaining_exposure_quota)
+
                 # Check if we have enough cash for this allocation
                 available_to_allocate = min(target_allocation, self.current_cash)
                 
@@ -99,8 +118,11 @@ class PortfolioManager:
                         "action": ctx['action'],
                         "quantity": lot_qty,
                         "price": ctx['price'],
-                        "reason": ctx['reason']
+                        "reason": ctx['reason'],
+                        "is_trend_entry": ctx.get('is_trend_entry', False)
                     })
-                    self.current_cash -= (lot_qty * ctx['price'])
+                    cost = lot_qty * ctx['price']
+                    self.current_cash -= cost
+                    current_held_val += cost
 
         return executable_orders

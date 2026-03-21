@@ -109,12 +109,17 @@ def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_
                     buy_signals.append("触及小时线布林带下轨")
             
             # 4. NEW: Trend Alignment Re-entry (防止牛市踏空)
-            if current_position == 0:
-                if 'SMA_20' in latest and 'SMA_60' in latest and 'SMA_120' in latest:
-                    if latest['SMA_20'] > latest['SMA_60'] > latest['SMA_120']:
-                        if current_price > latest['SMA_20'] and 48 < latest['RSI_14'] < 72:
+            # If position > 0 but not trend, promote to trend
+            # If position == 0, initiate trend entry
+            if 'SMA_20' in latest and 'SMA_60' in latest and 'SMA_120' in latest:
+                if latest['SMA_20'] > latest['SMA_60'] > (latest['SMA_120'] if pd.notna(latest['SMA_120']) else 0):
+                    if current_price > latest['SMA_20'] and 48 < latest['RSI_14'] < 72:
+                        if current_position == 0:
                             buy_signals.append("趋势确认强力追入")
                             return TradeAction.BUY, "趋势追入: 均线多头且RSI适中", score + 10.0, True
+                        elif not is_trend_position:
+                            # PROMOTE to trend
+                            return TradeAction.HOLD, "持仓晋升: 当前行情进入趋势模式", 0.0, True
 
     # SELL LOGIC (Can trigger regardless of daily trend to protect capital)
     # 1. Moving Average Death Cross
@@ -253,14 +258,17 @@ def generate_grid_trend_signals(df_60m: pd.DataFrame, current_position: float = 
                     return TradeAction.BUY, f"网格加仓(第{effective_tranches+1}批): 距成本下跌 {drop_from_cost*100:.1f}%, 且RSI超卖", score + (drop_from_cost * 100), False
 
     # --- 3. 趋势突破追入（防止错过波段牛） ---
-    # 场景：空仓 + 均线多头排列 + RSI 适中强势
-    if current_position == 0:
-        if 'SMA_20' in latest and 'SMA_60' in latest and 'SMA_120' in latest:
-            sma20, sma60, sma120 = latest['SMA_20'], latest['SMA_60'], latest['SMA_120']
-            if pd.notna(sma120):
-                if sma20 > sma60 > sma120 and current_price > sma20:
-                    if 'RSI_14' in latest and 48 < latest['RSI_14'] < 85: # 放宽 RSI 到 85
-                        if 'BOLL_MID' in latest and current_price > latest['BOLL_MID']:
-                            return TradeAction.BUY, f"趋势追入 (激进): 均线多头, RSI={latest['RSI_14']:.1f}", score + 15.0, True
+    # 场景：空仓/非趋势仓 + 均线多头排列 + RSI 适中强势
+    if 'SMA_20' in latest and 'SMA_60' in latest and 'SMA_120' in latest:
+        sma20, sma60, sma120 = latest['SMA_20'], latest['SMA_60'], latest['SMA_120']
+        # Relax SMA120 check if data is slightly insufficient
+        sma120_val = sma120 if pd.notna(sma120) else (sma60 * 0.95) 
+        if sma20 > sma60 > sma120_val and current_price > sma20:
+            if 'RSI_14' in latest and 48 < latest['RSI_14'] < 85: # 放宽 RSI 到 85
+                if 'BOLL_MID' in latest and current_price > latest['BOLL_MID']:
+                    if current_position == 0:
+                        return TradeAction.BUY, f"趋势追入 (激进): 均线多头, RSI={latest['RSI_14']:.1f}", score + 15.0, True
+                    elif not is_trend_position:
+                        return TradeAction.HOLD, f"持仓晋升 (激进): 开启趋势追踪模式, RSI={latest['RSI_14']:.1f}", 0.0, True
 
     return TradeAction.HOLD, "无网格/趋势执行信号", 0.0, False

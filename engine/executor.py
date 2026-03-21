@@ -3,6 +3,9 @@ from sqlalchemy.orm import Session
 from database.models import TradeRecord, TradeAction
 from futu import TrdSide, OrderType, TrdEnv
 
+import logging
+logger = logging.getLogger(__name__)
+
 class OrderExecutor:
     def __init__(self, db_session: Session, futu_client=None, simulate=True):
         self.db = db_session
@@ -72,5 +75,5 @@ class OrderExecutor:
         self.db.commit()
         self.db.refresh(trade_record)
 
-        print(f"[{status}] Executed {action.name} {quantity} shares of {code} at {price}. Reason: {reason}")
+        logger.info(f"[{status}] Executed {action.name} {quantity} shares of {code} at {price}. Reason: {reason}")
         return trade_record

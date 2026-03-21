@@ -235,6 +235,17 @@ class ATRStopLossHandler(StockQuoteHandlerBase):
                             # Calculate real-time profit/loss
                             profit_pct = (current_price - avg_cost) / avg_cost
 
+                            # Update highest price in real-time (for trailing stop)
+                            if current_price > holding.highest_price:
+                                holding.highest_price = current_price
+                                # Note: the batch writer will eventually flush AssetMonitor last_price,
+                                # but we commit high-priority state like highest_price immediately 
+                                # if we want it to be rock-solid, or just rely on the next batch.
+                                # Let's update the DB row for highest_price under the lock/session
+                                # if we are already in a session. 
+                                # Actually, we'll wait for the next refresh_state to sync from DB
+                                # or we can do a quick update here.
+                            
                             # 1. Hard Stop-Loss check (e.g. -8%)
                             if profit_pct <= -0.08:
                                 logger.warning(f"🚨 [REAL-TIME STOP LOSS] {code} triggers hard stop loss! Cost: {avg_cost}, Price: {current_price}, P&L: {profit_pct*100:.2f}%")
@@ -245,9 +256,9 @@ class ATRStopLossHandler(StockQuoteHandlerBase):
                                 logger.info(f"💰 [REAL-TIME TAKE PROFIT] {code} triggers hard take profit! Cost: {avg_cost}, Price: {current_price}, P&L: {profit_pct*100:.2f}%")
                                 self._trigger_sell(code, current_price, "Real-time Hard Take Profit (+15%)")
 
-                # Print a brief summary of received prices so the user can see it in the terminal
+                # Print a brief summary of received prices
                 if updates:
-                    print(f"[{datetime.now().strftime('%H:%M:%S')}] 实时报价更新 -> " + " | ".join(updates))
+                    logger.debug(f"实时报价更新 -> " + " | ".join(updates))
 
             except Exception as e:
                 logger.error(f"[RealTime] Error processing quote update: {e}")
