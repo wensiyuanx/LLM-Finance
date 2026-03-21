@@ -75,7 +75,7 @@ def fetch_and_save_data(code, days=550):
     finally:
         session.close()
 
-def run_backtest(code, cash=100000.0):
+def run_backtest(code, cash=100000.0, start_date=None):
     """
     Invokes the Backtrader ETF Grid strategy with the specified code.
     """
@@ -83,7 +83,8 @@ def run_backtest(code, cash=100000.0):
     from scripts.backtest.etf_grid_strategy import ETFGridMeanReversionStrategy
     
     cerebro = bt.Cerebro()
-    cerebro.addstrategy(ETFGridMeanReversionStrategy)
+    curr_market = 'HK' if code.startswith('HK.') else 'A'
+    cerebro.addstrategy(ETFGridMeanReversionStrategy, market=curr_market)
     
     logger.info(f"Loading data for {code} from database...")
     
@@ -135,39 +136,91 @@ def run_backtest(code, cash=100000.0):
         import platform
         font_prop = 'Heiti TC' if platform.system() == 'Darwin' else 'SimHei'
         
-        plt.figure(figsize=(14, 8))
-        timestamps = [bt.num2date(x) for x in cerebro.datas[0].datetime.array]
-        closes = cerebro.datas[0].close.array
-        plt.plot(timestamps, closes, label='价格 (小时线)', color='blue', alpha=0.6)
+        # Adjust figure to accommodate the table below
+        fig, (ax_chart, ax_table) = plt.subplots(2, 1, figsize=(14, 12), gridspec_kw={'height_ratios': [2, 1]})
+        
+        all_timestamps = [bt.num2date(x) for x in cerebro.datas[0].datetime.array]
+        all_closes = cerebro.datas[0].close.array
+        
+        # Filter for display if start_date provided
+        if start_date:
+            display_start = datetime.strptime(start_date, "%Y-%m-%d")
+            plot_indices = [i for i, ts in enumerate(all_timestamps) if ts >= display_start]
+            if plot_indices:
+                timestamps = [all_timestamps[i] for i in plot_indices]
+                closes = [all_closes[i] for i in plot_indices]
+            else:
+                timestamps, closes = all_timestamps, all_closes
+        else:
+            timestamps, closes = all_timestamps, all_closes
+
+        ax_chart.plot(timestamps, closes, label='价格 (小时线)', color='blue', alpha=0.6)
         
         if strategy_instance.buy_markers:
-            buy_dates, buy_prices = zip(*strategy_instance.buy_markers)
-            plt.scatter(buy_dates, buy_prices, marker='^', color='green', s=100, label='买入', zorder=5)
+            buy_markers = strategy_instance.buy_markers
+            if start_date:
+                buy_markers = [m for m in buy_markers if m[0] >= display_start]
+            if buy_markers:
+                buy_dates, buy_prices = zip(*buy_markers)
+                ax_chart.scatter(buy_dates, buy_prices, marker='^', color='green', s=100, label='买入', zorder=5)
             
         if strategy_instance.sell_markers:
-            sell_dates, sell_prices = zip(*strategy_instance.sell_markers)
-            plt.scatter(sell_dates, sell_prices, marker='v', color='red', s=100, label='卖出', zorder=5)
+            sell_markers = strategy_instance.sell_markers
+            if start_date:
+                sell_markers = [m for m in sell_markers if m[0] >= display_start]
+            if sell_markers:
+                sell_dates, sell_prices = zip(*sell_markers)
+                ax_chart.scatter(sell_dates, sell_prices, marker='v', color='red', s=100, label='卖出', zorder=5)
         
+        # Calculations for Title
         return_pct = (final_value - initial_value) / initial_value * 100
-        
-        # Asset return
         first_price = closes[0]
         last_price = closes[-1]
         asset_return_pct = (last_price - first_price) / first_price * 100
-        
         max_deployed = getattr(strategy_instance, 'max_capital_deployed', 0.0)
         max_deployed_pct = (max_deployed / initial_value) * 100
-        
+
         title = (f'回测结果 - {code}\n'
                  f'策略收益: {return_pct:.2f}% | 标的收益: {asset_return_pct:.2f}%\n'
                  f'交易次数: {strategy_instance.trade_count} | 最终净值: {final_value:.2f}\n'
                  f'最大资金动用: {max_deployed:.2f} ({max_deployed_pct:.2f}%)')
         
-        plt.title(title, fontproperties=font_prop, fontsize=14)
-        plt.xlabel('日期', fontproperties=font_prop)
-        plt.ylabel('价格', fontproperties=font_prop)
-        plt.grid(True, alpha=0.3)
-        plt.legend(prop={'family': font_prop})
+        ax_chart.set_title(title, fontproperties=font_prop, fontsize=14)
+        ax_chart.set_xlabel('日期', fontproperties=font_prop)
+        ax_chart.set_ylabel('价格', fontproperties=font_prop)
+        ax_chart.grid(True, alpha=0.3)
+        ax_chart.legend(prop={'family': font_prop})
+        
+        # --- Add Trade Details Table ---
+        ax_table.axis('off')
+        if hasattr(strategy_instance, 'trade_log') and strategy_instance.trade_log:
+            trades = strategy_instance.trade_log
+            if start_date:
+                trades = [t for t in trades if t['date'] >= display_start]
+            
+            # Show last 30 trades for context
+            display_trades = trades[-30:]
+            table_data = []
+            for t in display_trades:
+                # Format: Date, Action, Price, Qty, Reason
+                table_data.append([
+                    t['date'].strftime("%Y-%m-%d %H:%M"),
+                    "买入" if t['action'] == "BUY" else "卖出",
+                    f"{t['price']:.3f}",
+                    str(abs(t['qty'])),
+                    t['reason']
+                ])
+            
+            if table_data:
+                col_labels = ["时间", "动作", "价格", "数量", "原因"]
+                the_table = ax_table.table(cellText=table_data, colLabels=col_labels, loc='center', cellLoc='center')
+                the_table.auto_set_font_size(False)
+                the_table.set_fontsize(10)
+                the_table.scale(1.0, 1.5)
+                # Apply font to table cells
+                for key, cell in the_table.get_celld().items():
+                    cell.set_text_props(fontproperties=font_prop)
+        
         plt.tight_layout()
         
         plt.savefig(output_path, dpi=300)
@@ -180,6 +233,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run backtest for a specific stock code.")
     parser.add_argument("code", type=str, help="Stock code (e.g., HK.00700, SZ.159915)")
     parser.add_argument("--days", type=int, default=550, help="Days of history to fetch (default: 550)")
+    parser.add_argument("--start_date", type=str, default="2025-01-01", help="Backtest start date (YYYY-MM-DD, default: 2025-01-01)")
     parser.add_argument("--cash", type=float, default=100000.0, help="Initial cash (default: 100000)")
     
     args = parser.parse_args()
@@ -189,4 +243,4 @@ if __name__ == "__main__":
     
     # 2. Run Backtest
     if success:
-        run_backtest(args.code, args.cash)
+        run_backtest(args.code, args.cash, start_date=args.start_date)

@@ -13,7 +13,11 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df['SMA_5'] = ta.sma(df['close'], length=5)
     df['SMA_20'] = ta.sma(df['close'], length=20)
     
-    # 50-day SMA for broad market regime filtering
+    # SMAs for trend filtering
+    if len(df) >= 120:
+        df['SMA_60'] = ta.sma(df['close'], length=60)
+        df['SMA_120'] = ta.sma(df['close'], length=120)
+    
     if len(df) >= 50:
         df['SMA_50'] = ta.sma(df['close'], length=50)
 

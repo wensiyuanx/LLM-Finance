@@ -138,8 +138,27 @@ def generate_kline_chart(df: pd.DataFrame, code: str, output_dir: str = "output/
         rsi_ax = axlist[-2] # In 4 panel setup with volume=True, usually axlist[-2] is panel 3 (RSI)
         rsi_ax.fill_between(range(len(plot_df)), 30, 70, color='#2a2e39', alpha=0.3, zorder=0)
 
-        # 2. Add Super Title (Headed Outside) - Use platform-compatible font
-        font_name = 'Helvetica' if platform.system() == 'Darwin' else 'DejaVu Sans'
+        # 2. Add Super Title (Headed Outside) - Use platform-compatible font with symbol support
+        if platform.system() == 'Darwin':
+            # Common macOS fonts with good symbol support
+            for f in ['Arial Unicode MS', 'PingFang HK', 'Heiti SC', 'STIXGeneral']:
+                try:
+                    plt.rcParams['font.family'] = f
+                    break
+                except:
+                    continue
+        else:
+            # Linux (CentOS) / Windows
+            # STIXGeneral is often bundled with matplotlib and supports symbols
+            # DejaVu Sans is common on Linux and usually supports symbols
+            for f in ['STIXGeneral', 'DejaVu Sans', 'Liberation Sans', 'Arial', 'sans-serif']:
+                try:
+                    plt.rcParams['font.family'] = f
+                    break
+                except:
+                    continue
+            
+        font_name = plt.rcParams['font.family']
         fig.suptitle(title, color=title_color, fontsize=20, weight='bold', y=0.97, fontname=font_name)
         
         # 3. Add Subtle Branded Watermark
@@ -168,6 +187,12 @@ if __name__ == "__main__":
         'high': np.random.randn(100).cumsum() + 105,
         'low': np.random.randn(100).cumsum() + 95,
         'close': np.random.randn(100).cumsum() + 100,
-        'volume': np.random.randint(1000, 10000, 100)
+        'volume': np.random.randint(1000, 10000, 100),
+        'SMA_5': np.random.randn(100).cumsum() + 100,
+        'SMA_20': np.random.randn(100).cumsum() + 100,
+        'MACD': np.random.randn(100),
+        'MACD_Signal': np.random.randn(100),
+        'MACD_Histogram': np.random.randn(100),
+        'RSI_14': np.random.randint(20, 80, 100)
     }, index=dates)
     generate_kline_chart(data, "TEST_STOCK")

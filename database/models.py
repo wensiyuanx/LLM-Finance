@@ -103,6 +103,8 @@ class Holding(Base):
     avg_cost = Column(Float, nullable=False, default=0.0)           # weighted average buy price
     market_type = Column(Enum(MarketType), nullable=False)
     tranches_count = Column(Integer, default=0) # Number of grid tranches (for ETF strategy)
+    is_trend = Column(Integer, default=0)       # 1 if entered via Trend Breakout, 0 for Grid
+    highest_price = Column(Float, default=0.0)  # Highest price seen while holding (for trailing stop)
     updated_at = Column(DateTime, default=get_beijing_time, onupdate=get_beijing_time)
     created_at = Column(DateTime, default=get_beijing_time)
 

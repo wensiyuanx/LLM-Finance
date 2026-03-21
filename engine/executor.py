@@ -9,7 +9,7 @@ class OrderExecutor:
         self.futu = futu_client
         self.simulate = simulate
 
-    def execute_trade(self, user_id: int, code: str, action: TradeAction, price: float, quantity: float, reason: str):
+    def execute_trade(self, user_id: int, code: str, action: TradeAction, price: float, quantity: float, reason: str, is_trend_entry: bool = False):
         """
         Executes a trade order and logs it to the database with user_id.
         """

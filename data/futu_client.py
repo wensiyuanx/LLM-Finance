@@ -36,6 +36,11 @@ class FutuClient:
             return True
         except Exception as e:
             print(f"Failed to connect to FutuOpenD: {e}")
+            if "ECONNREFUSED" in str(e) or "10061" in str(e):
+                print("\n" + "="*50)
+                print("CRITICAL: Connection refused. Is FutuOpenD running?")
+                print(f"Please ensure FutuOpenD is open and listening on {FUTU_HOST}:{FUTU_PORT}")
+                print("="*50 + "\n")
             return False
 
     def close(self):

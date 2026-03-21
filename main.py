@@ -8,9 +8,10 @@ from database.db import SessionLocal, init_db
 warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib.font_manager')
 from database.models import KLineData, TradeAction, SignalRecord, UserWallet, Holding, MarketType, AssetMonitor
 from data.futu_client import FutuClient
-from strategy.logic import generate_signals, generate_etf_signals
+from strategy.logic import generate_signals, generate_grid_trend_signals
 from engine.executor import OrderExecutor
 from scripts.visualizer import generate_kline_chart
+from engine.time_utils import is_market_open
 import pandas as pd
 import concurrent.futures
 from typing import Dict
@@ -145,7 +146,7 @@ def get_holding(db, user_id: int, code: str, market_type) -> Holding:
     return holding
 
 
-def update_holding_buy(db, holding: Holding, qty: float, price: float, is_t1: bool = True):
+def update_holding_buy(db, holding: Holding, qty: float, price: float, is_t1: bool = True, is_trend: bool = False):
     """Weighted-average cost update on buy. T+1 means bought shares are NOT sellable today."""
     total_cost = (holding.quantity * holding.avg_cost) + (qty * price)
     holding.quantity = round(holding.quantity + qty, 6)
@@ -153,6 +154,14 @@ def update_holding_buy(db, holding: Holding, qty: float, price: float, is_t1: bo
     # If not T+1 (like HK), instantly sellable. Otherwise, delayed to next day.
     if not is_t1:
         holding.sellable_quantity = round(holding.sellable_quantity + qty, 6)
+    
+    # If this is a trend entry, mark it in the persistent holding
+    if is_trend:
+        holding.is_trend = 1
+    
+    # Initialize highest_price on buy
+    holding.highest_price = price
+        
     holding.tranches_count += 1
     db.commit()
 
@@ -166,6 +175,7 @@ def update_holding_sell(db, holding: Holding, qty: float):
         holding.avg_cost = 0.0
         holding.sellable_quantity = 0.0
         holding.tranches_count = 0
+        holding.is_trend = 0 # Clear trend flag on full exit
     else:
         holding.tranches_count = max(1, holding.tranches_count - 1)
     db.commit()
@@ -188,9 +198,6 @@ def rollover_t1_holdings(db_session, user_id=None):
 
 
 from engine.portfolio import PortfolioManager
-
-class PortfolioManagerOverride(PortfolioManager):
-    pass # Removed the buggy re-implementation that shadows engine.portfolio.PortfolioManager
 
 def rollover_t1_holdings_task():
     """Independent task to rollover T+1 holdings in the morning."""
@@ -307,20 +314,31 @@ def run_trading_bot(market_filter=None):
 
                 # Load persistent holding
                 holding = get_holding(db_session, user_id, code, market_type)
+                current_price = float(klines_60m['close'].iloc[-1])
                 
-                # Check if asset is ETF and route to correct strategy
-                if getattr(asset, 'is_etf', False):
-                    logger.info(f"[{code}] Routing to ETF Strategy")
-                    # Note: We now track tranches accurately in the DB via holding.tranches_count
-                    action, reason, score = generate_etf_signals(
+                # Update highest price for all assets (for trailing stop)
+                if holding.quantity > 0 and (holding.highest_price == 0 or current_price > holding.highest_price):
+                    holding.highest_price = current_price
+                    db_session.commit()
+                    logger.info(f"[{code}] New highest price recorded: {holding.highest_price}")
+
+                # Use distinct strategies for ETFs and Stocks
+                is_etf_asset = getattr(asset, 'is_etf', False)
+                if is_etf_asset:
+                    logger.info(f"[{code}] Routing to Aggressive ETF Strategy (Grid+Trend)")
+                    action, reason, score, is_trend_entry = generate_grid_trend_signals(
                         klines_60m, current_position=holding.quantity,
-                        avg_cost=holding.avg_cost, tranches_count=holding.tranches_count
+                        avg_cost=holding.avg_cost, tranches_count=holding.tranches_count,
+                        is_trend_position=bool(holding.is_trend),
+                        highest_price=holding.highest_price
                     )
                 else:
-                    # Pass both timeframes to strategy
-                    action, reason, score = generate_signals(
+                    logger.info(f"[{code}] Routing to Standard Stock Strategy (MTF)")
+                    action, reason, score, is_trend_entry = generate_signals(
                         klines_60m, df_day=klines_day, current_position=holding.quantity,
-                        avg_cost=holding.avg_cost, code=code
+                        avg_cost=holding.avg_cost, code=code,
+                        is_trend_position=bool(holding.is_trend),
+                        highest_price=holding.highest_price
                     )
                 latest_close = float(klines_60m['close'].iloc[-1])
                 logger.info("[%s] Signal: %s — %s (Sellable: %s, Score: %.1f)", code, action.name, reason, holding.sellable_quantity, score)
@@ -342,7 +360,10 @@ def run_trading_bot(market_filter=None):
                         'price': latest_close,
                         'sellable_qty': holding.sellable_quantity,
                         'reason': reason,
-                        'score': score
+                        'score': score,
+                        'is_trend_entry': is_trend_entry,
+                        'is_etf': is_etf_asset,
+                        'tranches_count': holding.tranches_count
                     })
 
             # Portfolio Manager resolution
@@ -360,6 +381,13 @@ def run_trading_bot(market_filter=None):
                 # Determine T+1 applicability (True for A-Share, False for HK)
                 is_t1 = (market_type == MarketType.A_SHARE)
                 
+                # Evaluate if market is open for this market type
+                market_open = is_market_open(market_type)
+                if not market_open:
+                    logger.warning("[%s] Market is CLOSED (%s). Signal: %s — %s. Skipping Execution.", 
+                                   code, market_type.name, action.name, reason)
+                    continue
+
                 if action == TradeAction.SELL:
                     trade_record = executor.execute_trade(
                         user_id, code, action,
@@ -379,16 +407,11 @@ def run_trading_bot(market_filter=None):
                     )
                     if trade_record:
                         update_wallet(db_session, wallet, -trade_cost)
-                        update_holding_buy(db_session, holding, qty, price, is_t1=is_t1)
+                        update_holding_buy(db_session, holding, qty, price, is_t1=is_t1, is_trend=order.get('is_trend_entry', False))
                         logger.info(f"已买入 {qty} 股 {code} @ {price:.3f}, 花费 {trade_cost:.2f} {wallet.currency}")
 
     except Exception as e:
         db_session.rollback()
-        logger.error("Error during K-line fetching or trading: %s", e)
-
-
-
-    except Exception as e:
         logger.error("Trading bot error: %s", e, exc_info=True)
     finally:
         futu.close()

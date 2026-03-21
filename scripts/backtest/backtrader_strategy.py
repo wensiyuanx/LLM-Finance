@@ -62,6 +62,7 @@ class MultiTimeframeStrategy(bt.Strategy):
         # To track buy/sell points for plotting
         self.buy_markers = []
         self.sell_markers = []
+        self.trade_log = [] # Detailed log for table
         self.trade_count = 0
 
     def notify_order(self, order):
@@ -70,6 +71,9 @@ class MultiTimeframeStrategy(bt.Strategy):
             
         if order.status in [order.Completed]:
             dt = bt.num2date(order.executed.dt)
+            # Find reason from previous logic or set generic
+            reason = getattr(order, 'reason', "系统信号")
+            
             if order.isbuy():
                 self.buyprice = order.executed.price
                 self.buy_markers.append((dt, order.executed.price))
@@ -79,6 +83,15 @@ class MultiTimeframeStrategy(bt.Strategy):
                 self.sell_markers.append((dt, order.executed.price))
                 if self.position.size == 0:
                     self._trend_breakout_used = False # Reset on full exit
+            
+            # Log for table
+            self.trade_log.append({
+                'date': dt,
+                'action': "BUY" if order.isbuy() else "SELL",
+                'price': order.executed.price,
+                'qty': order.executed.size,
+                'reason': reason
+            })
         
         self.order = None
 

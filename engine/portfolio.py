@@ -59,8 +59,25 @@ class PortfolioManager:
         # Process Buys
         for ctx in signals_context:
             if ctx['action'] == TradeAction.BUY:
-                # Use total portfolio value to determine position size limit, not just remaining cash
-                target_allocation = self.total_value * self.max_position_pct
+                is_etf = ctx.get('is_etf', False)
+                if is_etf:
+                    # 根据市场设置不同首仓比例（仅限 ETF）
+                    market_type = ctx.get('market_type')
+                    from database.models import MarketType
+                    if market_type == MarketType.HK_SHARE:
+                        allocation_map = {0: 0.50, 1: 0.20, 2: 0.15, 3: 0.15}
+                    else:
+                        allocation_map = {0: 0.35, 1: 0.25, 2: 0.20, 3: 0.20}
+                    
+                    tranches_count = ctx.get('tranches_count', 0)
+                    if tranches_count >= 4:
+                        continue
+                    
+                    target_ratio = allocation_map.get(tranches_count, 0.0)
+                    target_allocation = self.total_value * target_ratio
+                else:
+                    # 普通股票维持标准仓位比例 (如 25%)
+                    target_allocation = self.total_value * self.max_position_pct
                 
                 # Check if we have enough cash for this allocation
                 available_to_allocate = min(target_allocation, self.current_cash)

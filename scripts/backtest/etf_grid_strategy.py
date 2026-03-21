@@ -19,6 +19,7 @@ class ETFGridMeanReversionStrategy(bt.Strategy):
         ('grid_profit_pct', 0.03), # 每次网格反弹 3% 卖出一批（分批卖出）
         ('take_profit_pct', 0.04), # 整体仓位的目标利润 4% (清仓止盈)
         ('max_tranches', 4),     # 最多允许分 4 批建仓（防弹衣）
+        ('market', 'A'),         # 'A' or 'HK'
     )
 
     def __init__(self):
@@ -36,6 +37,8 @@ class ETFGridMeanReversionStrategy(bt.Strategy):
         # 记录上次卖出后价格的最低点，用于判断是否形成新的趋势
         self._last_exit_price = None
         self._trend_breakout_used = False  # 一个牛市阶段只追一次
+        self._is_trend_position = False    # 标记当前仓位是否为趋势买入（若是，就不走固定止盈）
+        self._trailing_stop_price = None   # 动态跟踪止盈价
         
         # 网格状态管理
         self.order = None
@@ -44,6 +47,7 @@ class ETFGridMeanReversionStrategy(bt.Strategy):
         # 绘图标记
         self.buy_markers = []
         self.sell_markers = []
+        self.trade_log = []      # (dt, action, price, qty, reason)
         self.trade_count = 0
         
         # 资金动用记录
@@ -55,7 +59,9 @@ class ETFGridMeanReversionStrategy(bt.Strategy):
             
         if order.status in [order.Completed]:
             dt = bt.num2date(order.executed.dt)
+            reason = getattr(order, 'reason', "N/A")
             if order.isbuy():
+                action = "BUY"
                 # 记录这批买入的价格和数量
                 self.buy_tranches.append((order.executed.price, order.executed.size))
                 self.buy_markers.append((dt, order.executed.price))
@@ -73,6 +79,7 @@ class ETFGridMeanReversionStrategy(bt.Strategy):
                 if self.position.size == 0:
                     # 全仓平仓模式，清空记录
                     self.buy_tranches = []
+                    self._is_trend_position = False # 重置趋势标记
                     self._on_full_exit()  # 重置趋势追入标志，允许下次牛市再入场
                     print(f"{dt} - [网格清仓] 成功全部卖出, 价格: {order.executed.price:.3f}")
                 else:
@@ -80,6 +87,15 @@ class ETFGridMeanReversionStrategy(bt.Strategy):
                     if self.buy_tranches:
                         sold_tranche = self.buy_tranches.pop()
                         print(f"{dt} - [网格分批止盈] 成功卖出批次, 价格: {order.executed.price:.3f}, 数量: {abs(order.executed.size)}")
+                
+            # Log all completed trades (OUTSIDE the sell block)
+            self.trade_log.append({
+                'date': dt,
+                'action': "BUY" if order.isbuy() else "SELL",
+                'price': order.executed.price,
+                'qty': order.executed.size,
+                'reason': reason
+            })
         
         self.order = None
 
@@ -99,30 +115,48 @@ class ETFGridMeanReversionStrategy(bt.Strategy):
             sell_reason = ""
             sell_size = 0
             
-            # 止盈条件 A：整体仓位达到网格目标利润 (如 4%)，全部清仓
-            if profit_pct >= self.params.take_profit_pct:
-                sell_signal = True
-                sell_size = self.position.size
-                sell_reason = f"达到网格整体止盈目标 (+{profit_pct*100:.1f}%)，全仓平仓"
-                
-            # 止盈条件 B：左侧超跌反弹触及布林带上轨，落袋为安，全部清仓
-            elif current_price >= self.boll.lines.top[0] and profit_pct > 0.01:
-                sell_signal = True
-                sell_size = self.position.size
-                sell_reason = "超跌反弹触及布林上轨止盈，全仓平仓"
+            # --- 核心改进：动态跟踪止盈 ---
             
-            # 止盈条件 C：网格分批止盈 (如果最后一批买入已经盈利超过网格目标)
-            elif len(self.buy_tranches) > 1:
+            # 如果当前利润已经超过目标利润 (4%)，开启/更新 跟踪止盈
+            if profit_pct >= self.params.take_profit_pct:
+                potential_stop = current_price * 0.95 # 允许从最高点回撤 5%
+                if self._trailing_stop_price is None or potential_stop > self._trailing_stop_price:
+                    if self._trailing_stop_price is None:
+                        print(f"{dt} - [跟踪止盈] 开启: 当前利润 {profit_pct*100:.1f}%, 初始动态止盈线 {potential_stop:.3f}")
+                    self._trailing_stop_price = potential_stop
+            
+            # 退出检票 A：触发跟踪止盈 (价格打破最高点回撤线)
+            if self._trailing_stop_price is not None and current_price < self._trailing_stop_price:
+                sell_signal = True
+                sell_size = self.position.size
+                sell_reason = f"触发动态跟踪止盈 (回撤5%), 锁定收益: {profit_pct*100:.1f}%"
+                
+            # 退出检票 B：趋势破位 (仅针对趋势单，作为双重保障)
+            elif self._is_trend_position and (self.sma20[0] < self.sma60[0] or current_price < self.sma60[0]):
+                sell_signal = True
+                sell_size = self.position.size
+                sell_reason = f"趋势破位止损 (SMA20<60), 收益: {profit_pct*100:.1f}%"
+
+            # 退出检票 C：左侧网格止盈 (非趋势单，且未开启跟踪止盈时，触及布林上轨)
+            elif not self._is_trend_position and self._trailing_stop_price is None:
+                if current_price >= self.boll.lines.top[0] and profit_pct > 0.01:
+                    sell_signal = True
+                    sell_size = self.position.size
+                    sell_reason = "触及布林上轨止盈 (网格模式), 全仓平仓"
+            
+            # --- 网格分批止盈 (仅限多批次重仓状态) ---
+            if not sell_signal and len(self.buy_tranches) > 1:
                 last_buy_price, last_buy_qty = self.buy_tranches[-1]
                 tranche_profit = (current_price - last_buy_price) / last_buy_price
                 if tranche_profit >= self.params.grid_profit_pct:
                     sell_signal = True
                     sell_size = last_buy_qty
-                    sell_reason = f"最新批次反弹盈利超过 {self.params.grid_profit_pct*100:.1f}%，分批止盈"
+                    sell_reason = f"网格分批止盈 (+{tranche_profit*100:.1f}%)"
                 
             if sell_signal and sell_size > 0:
                 self.order = self.sell(size=sell_size)
-                print(f"{dt} - 触发卖出: {sell_reason}, 均价: {avg_cost:.3f} -> 现价: {current_price:.3f}, 卖出数量: {sell_size}")
+                self.order.reason = sell_reason
+                print(f"{dt} - 触发卖出: {sell_reason}, 均价: {avg_cost:.3f} -> {current_price:.3f}, 数量: {sell_size}")
                 return
 
         # 2. 买入逻辑 (左侧网格建仓)
@@ -159,8 +193,13 @@ class ETFGridMeanReversionStrategy(bt.Strategy):
             if buy_signal:
                 cash = self.broker.getcash()
                 
-                # 马丁格尔变种：越跌买得越多。首仓 20%，第二仓 20%，第三仓 30%，第四仓 30%
-                allocation_map = {0: 0.20, 1: 0.20, 2: 0.30, 3: 0.30}
+                # 马丁格尔变种：越跌买得越多。
+                if self.params.market == 'HK':
+                    # 港股杠杆标的更激进
+                    allocation_map = {0: 0.50, 1: 0.20, 2: 0.15, 3: 0.15}
+                else:
+                    # A股标的维持 35%
+                    allocation_map = {0: 0.35, 1: 0.25, 2: 0.20, 3: 0.20}
                 target_cash_use = self.broker.getvalue() * allocation_map[current_tranches]
                 
                 # 确保不超过可用现金
@@ -171,13 +210,14 @@ class ETFGridMeanReversionStrategy(bt.Strategy):
                 if qty > 0:
                     print(f"{dt} - 触发买入: {buy_reason}, 计划买入 {qty} 股")
                     self.order = self.buy(size=qty)
+                    self.order.reason = buy_reason
 
         # 3. 趋势突破追入（防止错过牛市）—— 空仓 + 均线多头排列 + RSI 适中
-        elif current_tranches == 0 and not self._trend_breakout_used:
+        if current_tranches == 0 and not self._trend_breakout_used:
             in_uptrend = (
                 self.sma20[0] > self.sma60[0] > self.sma120[0]  # 均线多头排列
                 and current_price > self.sma20[0]                # 价格在20均线上方
-                and 48 < self.rsi[0] < 72                        # RSI 适中偏强，非超买也非超卖
+                and 48 < self.rsi[0] < 85                        # RSI 放宽到 85 (激进追涨)
                 and current_price > self.boll.lines.mid[0]       # 价格在布林中轨上方
             )
             if in_uptrend:
@@ -189,9 +229,12 @@ class ETFGridMeanReversionStrategy(bt.Strategy):
                     buy_reason = f"趋势追入: 均线多头排列, RSI={self.rsi[0]:.1f}, 价格在中轨上方"
                     print(f"{dt} - 触发趋势买入: {buy_reason}, 计划买入 {qty} 股")
                     self.order = self.buy(size=qty)
+                    self.order.reason = buy_reason
                     self._trend_breakout_used = True  # 本轮牛市只追一次
+                    self._is_trend_position = True    # 标记为趋势单
 
     def _on_full_exit(self):
         """Called when position is fully closed to reset breakout flag."""
         self._trend_breakout_used = False
+        self._trailing_stop_price = None # 复位跟踪止盈
         self._last_exit_price = self.dataclose[0]

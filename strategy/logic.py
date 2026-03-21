@@ -2,7 +2,7 @@ import pandas as pd
 from database.models import TradeAction
 from strategy.indicators import calculate_indicators
 
-def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_position: float = 0.0, avg_cost: float = 0.0, code: str = None) -> tuple[TradeAction, str]:
+def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_position: float = 0.0, avg_cost: float = 0.0, code: str = None, is_trend_position: bool = False, highest_price: float = 0.0) -> tuple[TradeAction, str, float, bool]:
     """
     Analyzes K-line data using a Multi-Timeframe (MTF) approach.
     Uses Daily data (df_day) to define the macro trend (Direction filter).
@@ -13,6 +13,7 @@ def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_
 
     # Calculate indicators for 60M
     df_60m = calculate_indicators(df_60m)
+    score = 0.0
     
     # Calculate indicators for Daily if provided
     daily_trend_up = True # Default to True if no daily data
@@ -33,9 +34,9 @@ def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_
     if len(df_60m) > 250:
         df_60m = df_60m.iloc[-250:].copy()
 
-    # Needs enough rows for hourly indicators
-    if len(df_60m) < 30:
-        return TradeAction.HOLD, "小时线数据不足无法计算指标"
+    # Needs enough rows for hourly indicators (SMA 50, ADX 14, etc.)
+    if len(df_60m) < 60:
+        return TradeAction.HOLD, "小时线数据不足(需至少60条)无法计算指标"
 
     latest = df_60m.iloc[-1]
     prev = df_60m.iloc[-2]
@@ -62,7 +63,11 @@ def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_
                 
             # Take profit at 3x ATR above average cost
             if current_price >= (avg_cost + (3 * atr)):
-                return TradeAction.SELL, f"触发ATR动态止盈 (当前高于成本3倍真实日波动)"
+                return TradeAction.SELL, f"触发ATR动态止盈 (当前高于成本3倍真实日波动)", 0.0, False
+                
+        # 3. Dynamic Trailing Stop (5% from peak)
+        if highest_price > 0 and current_price < highest_price * 0.95 and profit_pct > 0.04:
+            return TradeAction.SELL, f"触发5%动态追踪止盈, 锁定收益: {profit_pct*100:.1f}%", 0.0, False
     
     # Trend Regime Filter (Hourly)
     in_downtrend = False
@@ -98,11 +103,18 @@ def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_
             if rsi < 35: 
                 buy_signals.append(f"小时线RSI超卖({rsi:.1f})")
 
-        # 3. Bollinger Bands Logic (Hourly Lower Band Touch)
-        if 'BOLL_LOWER' in latest:
-            lower_band = latest['BOLL_LOWER']
-            if pd.notna(lower_band) and current_price <= lower_band:
-                buy_signals.append("触及小时线布林带下轨")
+            if 'BOLL_LOWER' in latest:
+                lower_band = latest['BOLL_LOWER']
+                if pd.notna(lower_band) and current_price <= lower_band:
+                    buy_signals.append("触及小时线布林带下轨")
+            
+            # 4. NEW: Trend Alignment Re-entry (防止牛市踏空)
+            if current_position == 0:
+                if 'SMA_20' in latest and 'SMA_60' in latest and 'SMA_120' in latest:
+                    if latest['SMA_20'] > latest['SMA_60'] > latest['SMA_120']:
+                        if current_price > latest['SMA_20'] and 48 < latest['RSI_14'] < 72:
+                            buy_signals.append("趋势确认强力追入")
+                            return TradeAction.BUY, "趋势追入: 均线多头且RSI适中", score + 10.0, True
 
     # SELL LOGIC (Can trigger regardless of daily trend to protect capital)
     # 1. Moving Average Death Cross
@@ -124,6 +136,12 @@ def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_
         upper_band = latest['BOLL_UPPER']
         if pd.notna(upper_band) and current_price >= upper_band and not in_strong_trend:
             sell_signals.append("触及小时线布林带上轨")
+            
+    # 4. Trend Break Exit (for Trend positions)
+    if is_trend_position:
+        if 'SMA_20' in latest and 'SMA_60' in latest:
+            if latest['SMA_20'] < latest['SMA_60'] or current_price < latest['SMA_60']:
+                return TradeAction.SELL, "趋势破位止盈 (SMA20<60)", 0.0, False
 
     # Multi-Factor Consensus & Conflict Resolution
     # Priority 1: If both buy and sell signals are present, stay neutral (HOLD) to avoid volatility noise
@@ -137,26 +155,26 @@ def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_
     # Buy: only if no position
     if current_position == 0:
         if len(buy_signals) >= 2:
-            return TradeAction.BUY, "强买入信号: " + " + ".join(buy_signals), score
+            return TradeAction.BUY, "强买入信号: " + " + ".join(buy_signals), score, False
         elif len(buy_signals) == 1:
             if "均线金叉" in buy_signals[0] or "RSI超卖" in buy_signals[0]:
-                return TradeAction.BUY, "买入信号: " + buy_signals[0], score
+                return TradeAction.BUY, "买入信号: " + buy_signals[0], score, False
     
     # Sell: only if holding
     if current_position > 0:
         if len(sell_signals) >= 2:
-            return TradeAction.SELL, "强卖出信号: " + " + ".join(sell_signals), 0.0
+            return TradeAction.SELL, "强卖出信号: " + " + ".join(sell_signals), 0.0, False
         elif len(sell_signals) == 1:
             if "均线死叉" in sell_signals[0] or "布林带上轨" in sell_signals[0]:
-                return TradeAction.SELL, f"卖出信号: {sell_signals[0]}", 0.0
+                return TradeAction.SELL, f"卖出信号: {sell_signals[0]}", 0.0, False
 
-    return TradeAction.HOLD, "无明确可执行信号 (观望/持仓)", 0.0
+    return TradeAction.HOLD, "无明确可执行信号 (观望/持仓)", 0.0, False
 
-def generate_etf_signals(df_60m: pd.DataFrame, current_position: float = 0.0, avg_cost: float = 0.0, tranches_count: int = 0) -> tuple[TradeAction, str, float]:
+def generate_grid_trend_signals(df_60m: pd.DataFrame, current_position: float = 0.0, avg_cost: float = 0.0, tranches_count: int = 0, is_trend_position: bool = False, highest_price: float = 0.0) -> tuple[TradeAction, str, float, bool]:
     """
-    ETF专属网格/均值回归策略：纯左侧建仓，越跌越买，反弹分批或整体止盈。
-    不需要判断大盘趋势。
-    Returns: (TradeAction, Reason, Score)
+    统一的“网格+趋势”激进策略：结合左侧超跌网格建模与右侧右侧趋势追入。
+    适用于 ETF 和绩优蓝筹股。
+    Returns: (TradeAction, Reason, Score, is_trend_entry)
     """
     if df_60m is None or df_60m.empty:
         return TradeAction.HOLD, "无有效小时线数据", 0.0
@@ -166,8 +184,8 @@ def generate_etf_signals(df_60m: pd.DataFrame, current_position: float = 0.0, av
     if len(df_60m) > 250:
         df_60m = df_60m.iloc[-250:].copy()
 
-    if len(df_60m) < 30:
-        return TradeAction.HOLD, "小时线数据不足无法计算指标", 0.0
+    if len(df_60m) < 60:
+        return TradeAction.HOLD, "小时线数据不足(需至少60条)无法计算指标", 0.0
 
     latest = df_60m.iloc[-1]
     current_price = latest['close']
@@ -176,26 +194,34 @@ def generate_etf_signals(df_60m: pd.DataFrame, current_position: float = 0.0, av
     if 'RSI_14' in latest and pd.notna(latest['RSI_14']):
         score = 100 - latest['RSI_14'] # More oversold = higher score
 
-    # ETF 参数设定
+    # 策略参数设定
     rsi_oversold = 25
     boll_drop_pct = 0.02
     grid_drop_pct = 0.03
     take_profit_pct = 0.04
+    trailing_stop_pct = 0.05 # 5% 追踪止盈阈值
     max_tranches = 4
 
-    # --- 1. 卖出逻辑 (网格整体止盈或碰上轨) ---
+    # --- 1. 卖出逻辑 (动态跟踪止盈 或 趋势破位) ---
     if current_position > 0 and avg_cost > 0:
         profit_pct = (current_price - avg_cost) / avg_cost
         
-        # 整体止盈 A：达到目标利润
-        if profit_pct >= take_profit_pct:
-            return TradeAction.SELL, f"达到网格整体止盈目标 (+{profit_pct*100:.1f}%)，全仓平仓", 0.0
+        # 激活追踪止盈：利润超过 4%，且当前触及最高价回落 5%
+        if profit_pct >= take_profit_pct and highest_price > 0:
+            if current_price < highest_price * (1 - trailing_stop_pct):
+                return TradeAction.SELL, f"触发 5% 动态追踪止盈, 锁定收益: {profit_pct*100:.1f}%, 最高价: {highest_price:.3f}", 0.0, False
             
-        # 整体止盈 B：超跌反弹触及布林带上轨
-        if 'BOLL_UPPER' in latest:
+        # 整体止盈 B：超跌反弹触及布林带上轨 (仅对非趋势持仓有效，且未处于大幅盈利保护中)
+        if 'BOLL_UPPER' in latest and profit_pct < take_profit_pct:
             upper_band = latest['BOLL_UPPER']
-            if pd.notna(upper_band) and current_price >= upper_band and profit_pct > 0.01:
-                return TradeAction.SELL, "超跌反弹触及布林上轨止盈，全仓平仓", 0.0
+            if not is_trend_position and pd.notna(upper_band) and current_price >= upper_band and profit_pct > 0.01:
+                return TradeAction.SELL, "超跌反弹触及布林上轨止盈，全仓平仓", 0.0, False
+                
+        # --- 趋势持仓专属退出逻辑 (双重保障) ---
+        if is_trend_position:
+            if 'SMA_20' in latest and 'SMA_60' in latest:
+                if latest['SMA_20'] < latest['SMA_60'] or current_price < latest['SMA_60']:
+                    return TradeAction.SELL, f"趋势破位止盈/止损 (SMA20<60), 收益: {profit_pct*100:.1f}%", 0.0, False
                 
         # 注: 实盘暂不支持记住每笔买入的具体价位，因此先做整体止盈处理，或依赖平均成本判断
 
@@ -205,13 +231,13 @@ def generate_etf_signals(df_60m: pd.DataFrame, current_position: float = 0.0, av
         if current_position == 0:
             if 'RSI_14' in latest and pd.notna(latest['RSI_14']):
                 if latest['RSI_14'] < rsi_oversold:
-                    return TradeAction.BUY, f"首仓: RSI极度超卖({latest['RSI_14']:.1f})", score
+                    return TradeAction.BUY, f"首仓: RSI极度超卖({latest['RSI_14']:.1f})", score, False
                     
             if 'BOLL_LOWER' in latest:
                 lower_band = latest['BOLL_LOWER']
                 if pd.notna(lower_band) and current_price <= lower_band * (1 - boll_drop_pct):
                     # Slightly boost score if it breaks bollinger lower band heavily
-                    return TradeAction.BUY, "首仓: 跌破布林下轨2%", score + 10.0
+                    return TradeAction.BUY, "首仓: 跌破布林下轨2%", score + 10.0, False
                     
         # 网格加仓 (被套状态)
         elif current_position > 0 and avg_cost > 0:
@@ -224,6 +250,17 @@ def generate_etf_signals(df_60m: pd.DataFrame, current_position: float = 0.0, av
             if drop_from_cost >= expected_drop:
                 # 额外加一个 RSI 超卖限制避免单边瀑布过快加仓
                 if 'RSI_14' in latest and pd.notna(latest['RSI_14']) and latest['RSI_14'] < 35:
-                    return TradeAction.BUY, f"网格加仓(第{effective_tranches+1}批): 距成本下跌 {drop_from_cost*100:.1f}%, 且RSI超卖", score + (drop_from_cost * 100)
+                    return TradeAction.BUY, f"网格加仓(第{effective_tranches+1}批): 距成本下跌 {drop_from_cost*100:.1f}%, 且RSI超卖", score + (drop_from_cost * 100), False
 
-    return TradeAction.HOLD, "无ETF网格执行信号", 0.0
+    # --- 3. 趋势突破追入（防止错过波段牛） ---
+    # 场景：空仓 + 均线多头排列 + RSI 适中强势
+    if current_position == 0:
+        if 'SMA_20' in latest and 'SMA_60' in latest and 'SMA_120' in latest:
+            sma20, sma60, sma120 = latest['SMA_20'], latest['SMA_60'], latest['SMA_120']
+            if pd.notna(sma120):
+                if sma20 > sma60 > sma120 and current_price > sma20:
+                    if 'RSI_14' in latest and 48 < latest['RSI_14'] < 85: # 放宽 RSI 到 85
+                        if 'BOLL_MID' in latest and current_price > latest['BOLL_MID']:
+                            return TradeAction.BUY, f"趋势追入 (激进): 均线多头, RSI={latest['RSI_14']:.1f}", score + 15.0, True
+
+    return TradeAction.HOLD, "无网格/趋势执行信号", 0.0, False

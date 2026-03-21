@@ -1,4 +1,4 @@
-<h1 align="center">🚀 保护伞量化交易机器人 V2.1.0</h1>
+<h1 align="center">🚀 保护伞量化交易机器人 V2.2.0</h1>
 <h2 align="center">专业为A股/港股打造的量化交易系统</h2>
 
 <div align="center">
@@ -38,13 +38,13 @@
 
 | 特性 | 描述 | 技术亮点 |
 |------|------|----------|
-| **🧠 双轨制策略** | 个股趋势跟踪 + ETF网格交易 | 智能路由，自适应切换 |
-| **⚡ 实时风控** | 毫秒级止损止盈监控 | WebSocket + 批量处理优化 |
-| **🤖 自动化调度** | 全天候智能交易调度 | 多时间框架精准执行 |
-| **💎 资产管理** | T+1/T+0规则智能处理 | 仓位管理 + 资金分配 |
+| **🧠 双轨制策略** | ETF激进网格 + 个股趋势跟踪 | 智能路由，V2.1 深度优化 |
+| **🛡️ 实时风控** | 5% 动态追踪止盈 + 交易时段保护 | 自动记录最高价，回撤即锁利 |
+| **🤖 自动化调度** | 全天候智能交易调度 | 多时间框架精确执行，T+1 自动保护 |
+| **💎 资产管理** | 市场差异化分配 (35% A股 / 50% 港股) | 智能批次管理，最高 4 批次网格 |
 | **📈 回测引擎** | 专业级策略回测平台 | Backtrader深度集成 |
 | **🌐 WebApi服务**| 自动化回测API接口 | FastAPI + Volcengine OSS 图床直传 |
-| **🔒 安全可靠** | 模拟交易 + 生产就绪 | 完善的异常处理机制 |
+| **🔒 安全可靠** | 模拟交易 + 生产就绪 | 完善的异常处理与连接诊断 |
 
 ### 📊 性能指标
 
@@ -67,10 +67,10 @@
 │                    双轨制策略引擎                            │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  📈 个股策略 (趋势跟踪 v2.1)    📊 ETF策略 (网格交易 v2.1)  │
-│  ├─ 均线多头趋势追入            ├─ 左侧建仓 + 趋势再入场     │
-│  ├─ ADX 动态强趋势保护          ├─ 倒金字塔分批             │
-│  └─ 信号冲突抑制机制            └─ 均值回归止盈             │
+│  📈 个股策略 (MTF v2.1)           📊 ETF策略 (Aggressive v2.1)  │
+│  ├─ 趋势确认再入场机制            ├─ 激进网格(首仓35%/50%)      │
+│  ├─ SMA 20/60/120 完美排列        ├─ RSI 85 强趋势放行保护      │
+│  └─ 5% 动态追踪止盈               └─ 全自动 4 批次倒金字塔      │
 │                                                             │
 │           🎯 智能路由 (根据is_etf自动切换)                   │
 │                                                             │
@@ -110,6 +110,7 @@
 │                                                             │
 │  ⚡ 特性：                                                  │
 │  ├─ 多市场并行调度                                         │
+│  ├─ 自动识别市场交易时段 (A股/港股)                        │
 │  ├─ 智能时间窗口优化                                       │
 │  ├─ 自动故障恢复                                           │
 │  └─ 性能监控告警                                           │
@@ -339,8 +340,8 @@ python -c "from database.db import SessionLocal; from database.models import Ass
 ### 📈 个股策略 (趋势跟踪)
 
 #### 核心理念
-- **右侧交易**: 等待趋势确认后入场
-- **多因子共振**: 多个技术指标同时触发
+- **双重风控**: ATR 动态止损 + 5% 极值回撤止盈
+- **智能再入场**: 解决牛市“踏空”问题的 Strong Trend Re-entry 机制
 - **风险控制**: 严格的止损止盈机制
 
 #### 买入条件 (需满足 ≥2 个条件)
@@ -378,9 +379,9 @@ if (Price >= BOLL_UPPER * 0.99) and (ADX <= 25):
 ### 📊 ETF策略 (网格交易)
 
 #### 核心理念
-- **左侧交易**: 逆势布局，越跌越买
-- **网格分批**: 倒金字塔建仓
-- **均值回归**: 利用波动获利
+- **激进建仓**: A股首仓 35%，港股首仓 50%，覆盖波动大的交易环境
+- **趋势增强**: 兼容均线多头排列，防止单边行情错过波段
+- **均值回归**: 利用布林带和 RSI 极限值进行高频波动获利
 
 #### 建仓策略 (4批次倒金字塔)
 
@@ -396,17 +397,13 @@ if (Price >= BOLL_UPPER * 0.99) and (ADX <= 25):
 #### 止盈策略
 
 ```python
-# 整体止盈: 4%
-if (current_value - total_cost) / total_cost >= 0.04:
-    return "SELL_ALL", "整体止盈4%"
+# 动态追踪止盈: 4% 盈利触发，5% 回撤锁利
+if (profit >= 0.04) and (current_price < highest_price * 0.95):
+    return "SELL_ALL", "触发5%追踪止盈"
 
-# 超跌反弹: 触及布林带上轨
-if (price >= BOLL_UPPER) and (current_value > total_cost):
-    return "SELL_ALL", "布林带上轨止盈"
-
-# 分批止盈: 最后一批反弹3%
-if (last_tranche_profit >= 0.03):
-    return "SELL_LAST", "分批止盈3%"
+# 分批止盈/趋势破位
+if is_trend_pos and (SMA20 < SMA60):
+    return "SELL_ALL", "趋势破位平仓"
 ```
 
 ### 🎯 智能评分系统
@@ -534,18 +531,12 @@ python scripts/run_backtest.py HK.00700 --days 550 \
 #### ETF策略回测
 
 ```bash
-# 基本回测
+# 基础回测 (默认 2025-01-01 至今，附带明细表)
 PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python \
-    python scripts/run_etf_backtest.py SZ.159915 --days 550
-
-# 自定义网格参数
-PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python \
-    python scripts/run_etf_backtest.py SZ.159915 --days 550 \
-    --grid-drop 0.05 \
-    --take-profit 0.06
+    python scripts/run_etf_backtest.py SZ.159915
 
 # 查看回测结果
-# 生成的图表: etf_backtest_result_SZ.159915.png
+# 生成的图表: etf_backtest_result_SZ.159915.png (双窗格布局)
 ```
 
 ### 🔍 数据分析
@@ -613,11 +604,19 @@ if __name__ == "__main__":
   网络: 100Mbps+
 
 软件环境:
-  OS: Ubuntu 20.04+ / CentOS 7+
+  OS: Ubuntu 20.04+ / CentOS 7+ (推荐 CentOS 9)
   Python: 3.12+
   MySQL: 8.0+
   FutuOpenD: 最新版本
 ```
+
+> [!TIP]
+> **CentOS 字体安装**：若在生成图表时遇到字符缺失警告，请安装以下字体包：
+> ```bash
+> # CentOS 9 / RHEL 9
+> sudo yum install dejavu-sans-fonts
+> sudo yum install google-noto-sans-cjk-ttc-fonts
+> ```
 
 #### 部署步骤
 
@@ -1536,7 +1535,7 @@ curl http://127.0.0.1:8069/api/backtest
 
 ## 📈 版本历史
 
-### v2.1.0 (2026-03-20) - 🌪️ 策略与接口性能升级
+### v2.2.0 (2026-03-20) - 🌪️ 策略与接口性能升级
 
 - 🎯 **策略 V2.1 增强**: 引入 SMA 20/60/120 趋势再入场机制，彻底解决牛市「踏空」问题。
 - 🛡️ **冲突抑制系统**: 联动核心逻辑层，增加买卖信号互斥检测，过滤波动噪音。

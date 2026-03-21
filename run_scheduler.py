@@ -22,6 +22,8 @@ from futu import *
 from database.db import init_db, SessionLocal
 from database.models import MarketType, Holding, AssetMonitor
 from main import run_trading_bot, rollover_t1_holdings_task
+from engine.time_utils import is_market_open
+from data.futu_client import FUTU_HOST, FUTU_PORT
 
 # ---------------------------------------------------------------------------
 # Logging — write to stdout AND a persistent log file
@@ -340,7 +342,7 @@ def start_realtime_monitor_thread(batch_interval=5.0):
 
         # Use the same host/port as defined in data/futu_client.py
         try:
-            quote_ctx = OpenQuoteContext(host='127.0.0.1', port=11111)
+            quote_ctx = OpenQuoteContext(host=FUTU_HOST, port=FUTU_PORT)
             logger.info("[RealTime] Connected to FutuOpenD Quote Context for real-time monitoring.")
         except Exception as e:
             logger.error(f"[RealTime] Failed to connect to FutuOpenD: {e}")
@@ -481,10 +483,19 @@ def start_scheduler(batch_interval=5.0):
     logger.info("=" * 60)
     logger.info("Press Ctrl+C to stop.")
 
-    # Run initial startup analysis
-    logger.info("Running initial startup analysis for A & HK shares...")
-    job_a_share()
-    job_hk_share()
+    # Run initial startup analysis ONLY if market is open
+    logger.info("Checking if market is open for initial startup analysis...")
+    if is_market_open(MarketType.A_SHARE):
+        logger.info("A-Share market is open. Running initial analysis...")
+        job_a_share()
+    else:
+        logger.info("A-Share market is CLOSED. Skipping initial analysis.")
+
+    if is_market_open(MarketType.HK_SHARE):
+        logger.info("HK-Share market is open. Running initial analysis...")
+        job_hk_share()
+    else:
+        logger.info("HK-Share market is CLOSED. Skipping initial analysis.")
 
     try:
         while True:

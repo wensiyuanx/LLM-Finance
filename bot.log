@@ -83,3 +83,22 @@
 2026-03-20 11:17:21,909 [INFO    ] scheduler — === A-Share Market Job Started ===
 2026-03-20 11:17:24,215 [INFO    ] scheduler — [API Server] Starting FastAPI on 0.0.0.0:8000
 2026-03-20 11:17:24,494 [INFO    ] main — Trading bot started | filter: ['A_SHARE'].
+2026-03-21 09:31:14,679 [INFO    ] scheduler — ============================================================
+2026-03-21 09:31:14,680 [INFO    ] scheduler — Starting enhanced scheduler with real-time monitoring and batch writing...
+2026-03-21 09:31:14,680 [INFO    ] scheduler — Batch write interval: 5.0s
+2026-03-21 09:31:14,681 [INFO    ] scheduler — ============================================================
+2026-03-21 09:31:14,681 [INFO    ] scheduler — [RealTime] Initializing Real-Time Market Monitor Thread with batch writing...
+2026-03-21 09:31:14,681 [INFO    ] scheduler — [RealTime] Real-time monitor thread started successfully.
+2026-03-21 09:31:14,683 [INFO    ] scheduler — ============================================================
+2026-03-21 09:31:14,683 [INFO    ] scheduler — Scheduler configured:
+2026-03-21 09:31:14,683 [INFO    ] scheduler —   - Real-time monitoring: ACTIVE (background thread)
+2026-03-21 09:31:14,683 [INFO    ] scheduler —   - API Server: ACTIVE (127.0.0.1:8069 background thread)
+2026-03-21 09:31:14,684 [INFO    ] scheduler —   - A-Share analysis: 11:30, 14:50
+2026-03-21 09:31:14,684 [INFO    ] scheduler —   - HK-Share analysis: 11:30, 14:00, 15:50
+2026-03-21 09:31:14,684 [INFO    ] scheduler —   - T+1 rollover: 09:00
+2026-03-21 09:31:14,684 [INFO    ] scheduler — ============================================================
+2026-03-21 09:31:14,684 [INFO    ] scheduler — Press Ctrl+C to stop.
+2026-03-21 09:31:14,684 [INFO    ] scheduler — Checking if market is open for initial startup analysis...
+2026-03-21 09:31:14,755 [INFO    ] scheduler — A-Share market is CLOSED. Skipping initial analysis.
+2026-03-21 09:31:14,755 [INFO    ] scheduler — HK-Share market is CLOSED. Skipping initial analysis.
+2026-03-21 09:31:14,965 [INFO    ] scheduler — [API Server] Starting FastAPI on 0.0.0.0:8069
