@@ -1,8 +1,9 @@
 futu-api
 pandas
 pandas-ta
-sqlalchemy
+sqlalchemy[asyncio]
 pymysql
+aiomysql
 python-dotenv
 cryptography
 schedule

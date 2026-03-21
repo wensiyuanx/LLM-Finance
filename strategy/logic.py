@@ -1,14 +1,14 @@
 import pandas as pd
 from database.models import TradeAction
 from strategy.indicators import calculate_indicators
+from config import get_config
 
 def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_position: float = 0.0, avg_cost: float = 0.0, code: str = None, is_trend_position: bool = False, highest_price: float = 0.0, is_pre_close: bool = False) -> tuple[TradeAction, str, float, bool]:
     """
     Analyzes K-line data using a Multi-Timeframe (MTF) approach.
-    Uses Daily data (df_day) to define the macro trend (Direction filter).
-    Uses Hourly data (df_60m) to trigger precise entries and exits.
-    is_pre_close: if True, indicates the last 60m bar is incomplete (e.g. 14:50), so volume checks are scaled.
     """
+    config = get_config()["strategies"]["standard_stock"]
+    
     if df_60m is None or df_60m.empty:
         return TradeAction.HOLD, "无有效小时线数据", 0.0, False
 
@@ -50,10 +50,10 @@ def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_
     if current_position > 0 and avg_cost > 0:
         profit_pct = (current_price - avg_cost) / avg_cost
         
-        # 1. Fallback extreme stop loss/profit
-        if profit_pct <= -0.08:
+        # 1. Fallback extreme stop loss/profit - using configured values
+        if profit_pct <= config["fixed_stop_loss"]:
             return TradeAction.SELL, f"触发极度风控止损 (亏损 {profit_pct*100:.2f}%)"
-        elif profit_pct >= 0.15:
+        elif profit_pct >= config["fixed_take_profit"]:
             return TradeAction.SELL, f"触发极度风控止盈 (盈利 {profit_pct*100:.2f}%)"
             
         # 2. ATR Trailing Stop / Volatility Risk
@@ -68,9 +68,9 @@ def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_
             if current_price >= (avg_cost + (3 * atr)):
                 return TradeAction.SELL, f"触发ATR动态止盈 (当前高于成本3倍真实日波动)", 0.0, False
                 
-        # 3. Dynamic Trailing Stop (5% from peak)
-        if highest_price > 0 and current_price < highest_price * 0.95 and profit_pct > 0.04:
-            return TradeAction.SELL, f"触发5%动态追踪止盈, 锁定收益: {profit_pct*100:.1f}%", 0.0, False
+        # 3. Dynamic Trailing Stop
+        if highest_price > 0 and current_price < highest_price * (1 - config.get("trailing_stop_pct", 0.05)) and profit_pct > config.get("trailing_activation_pct", 0.04):
+            return TradeAction.SELL, f"触发 {config.get('trailing_stop_pct', 0.05)*100:.0f}% 动态追踪止盈, 锁定收益: {profit_pct*100:.1f}%", 0.0, False
     
     # Trend Regime Filter (Hourly)
     in_downtrend = False
@@ -188,6 +188,8 @@ def generate_grid_trend_signals(df_60m: pd.DataFrame, current_position: float = 
     适用于 ETF 和绩优蓝筹股。
     Returns: (TradeAction, Reason, Score, is_trend_entry)
     """
+    config = get_config()["strategies"]["broad_etf"]
+    
     if df_60m is None or df_60m.empty:
         return TradeAction.HOLD, "无有效小时线数据", 0.0, False
 
@@ -212,12 +214,12 @@ def generate_grid_trend_signals(df_60m: pd.DataFrame, current_position: float = 
         score = 100 - latest['RSI_14'] # More oversold = higher score
 
     # 策略参数设定
-    rsi_oversold = 25
-    boll_drop_pct = 0.02
-    grid_drop_pct = 0.03
-    take_profit_pct = 0.04
-    trailing_stop_pct = 0.05 # 5% 追踪止盈阈值
-    max_tranches = 4
+    rsi_oversold = config.get("rsi_oversold", 25)
+    boll_drop_pct = config.get("boll_drop_pct", 0.02)
+    grid_drop_pct = config["grid_drop_pct"]
+    take_profit_pct = config.get("take_profit_pct", 0.04)
+    trailing_stop_pct = config["profit_target_pct"] # 追踪止盈阈值
+    max_tranches = config["max_tranches"]
 
     # --- 1. 卖出逻辑 (动态跟踪止盈 或 趋势破位) ---
     if current_position > 0 and avg_cost > 0:
@@ -234,11 +236,47 @@ def generate_grid_trend_signals(df_60m: pd.DataFrame, current_position: float = 
             if not is_trend_position and pd.notna(upper_band) and current_price >= upper_band and profit_pct > 0.01:
                 return TradeAction.SELL, "超跌反弹触及布林上轨止盈，全仓平仓", 0.0, False
                 
-        # --- 趋势持仓专属退出逻辑 (双重保障) ---
+        # --- 趋势持仓专属退出逻辑 (基于回测优化的 自适应 跟踪回撤) ---
         if is_trend_position:
-            if 'SMA_20' in latest and 'SMA_60' in latest:
-                if latest['SMA_20'] < latest['SMA_60'] or current_price < latest['SMA_60']:
-                    return TradeAction.SELL, f"趋势破位止盈/止损 (SMA20<60), 收益: {profit_pct*100:.1f}%", 0.0, False
+            # 记录趋势单持仓期间的最高价 (注意：实盘中 highest_price 已由 main.py 维护并传入)
+            if highest_price > 0:
+                # 0. 计算趋势强度 (ADX)
+                adx = latest.get('ADX', 20) # 默认为弱
+                is_strong_trend = adx > 25
+                
+                # 1. 保本策略 (Breakeven): 利润 > 2% 时，止损上移至成本+0.5%
+                if profit_pct >= 0.02:
+                    breakeven_line = avg_cost * 1.005
+                    if current_price < breakeven_line:
+                        return TradeAction.SELL, f"趋势单触发保本止损 (利润曾达2%), 收益: {profit_pct*100:.1f}%", 0.0, False
+                
+                # 2. 阶梯与自适应跟踪 (Adaptive Trailing):
+                if 0.015 <= profit_pct < 0.04:
+                    if not is_strong_trend:
+                        # 震荡市：紧凑离场 (2%)
+                        if current_price < highest_price * 0.98:
+                            return TradeAction.SELL, f"趋势弱势回调 (最高价 {highest_price:.3f} 回撤2%), 收益: {profit_pct*100:.1f}%", 0.0, False
+                    else:
+                        # 强势趋势：放宽至 4%
+                        if current_price < highest_price * 0.96:
+                            return TradeAction.SELL, f"趋势强势回调 (最高价 {highest_price:.3f} 回撤4%), 收益: {profit_pct*100:.1f}%", 0.0, False
+                elif profit_pct >= 0.04:
+                    if is_strong_trend:
+                        # 极强持股：留出 6% 波动空间
+                        if current_price < highest_price * 0.94:
+                            return TradeAction.SELL, f"趋势主升浪回撤 (最高价 {highest_price:.3f} 6%), 收益: {profit_pct*100:.1f}%", 0.0, False
+                    else:
+                        # 趋势弱化：收紧至 3%
+                        if current_price < highest_price * 0.97:
+                            return TradeAction.SELL, f"趋势转弱落袋 (最高价 {highest_price:.3f} 3%), 收益: {profit_pct*100:.1f}%", 0.0, False
+                
+            # 策略 B: 大级别趋势彻底反转 (SMA60 < SMA120 代替之前的 SMA20 < 60)
+            if 'SMA_60' in latest and 'SMA_120' in latest:
+                if pd.notna(latest['SMA_120']) and latest['SMA_60'] < latest['SMA_120']:
+                    return TradeAction.SELL, f"趋势大级别破位 (SMA60<120), 收益: {profit_pct*100:.1f}%", 0.0, False
+                
+            elif 'SMA_60' in latest and current_price < latest['SMA_60'] * 0.98: # 价格大幅跌破 60 均线
+                return TradeAction.SELL, f"趋势价格严重跌破 SMA60, 收益: {profit_pct*100:.1f}%", 0.0, False
                 
         # 注: 实盘暂不支持记住每笔买入的具体价位，因此先做整体止盈处理，或依赖平均成本判断
 

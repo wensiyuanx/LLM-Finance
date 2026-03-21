@@ -94,10 +94,17 @@ class PortfolioManager:
                         allocation_map = {0: 0.35, 1: 0.25, 2: 0.20, 3: 0.20}
                     
                     tranches_count = ctx.get('tranches_count', 0)
-                    if tranches_count >= 4:
+                    is_trend_entry = ctx.get('is_trend_entry', False)
+                    
+                    if tranches_count >= 4 and not is_trend_entry:
                         continue
                     
-                    target_ratio = allocation_map.get(tranches_count, 0.0)
+                    if is_trend_entry:
+                        # 趋势追入仓位提高到 50%，最大化牛市收益
+                        target_ratio = 0.50
+                    else:
+                        target_ratio = allocation_map.get(tranches_count, 0.0)
+                        
                     target_allocation = self.total_value * target_ratio
                 else:
                     # 普通股票维持标准仓位比例 (如 25%)

@@ -117,3 +117,14 @@ class BacktestRecord(Base):
     code = Column(String(50), index=True, nullable=False)
     oss_url = Column(String(500), nullable=True)
     created_at = Column(DateTime, default=get_beijing_time)
+
+class ConfigParameter(Base):
+    __tablename__ = "config_parameters"
+    id = Column(Integer, primary_key=True, index=True)
+    category = Column(String(50), index=True, nullable=False) # e.g. 'standard_stock', 'broad_etf'
+    key = Column(String(50), index=True, nullable=False)      # e.g. 'max_tranches'
+    value = Column(String(200), nullable=False)              # Store as string, cast in code
+    description = Column(String(500), nullable=True)
+    updated_at = Column(DateTime, default=get_beijing_time, onupdate=get_beijing_time)
+    
+    __table_args__ = (UniqueConstraint('category', 'key', name='uq_config_cat_key'),)

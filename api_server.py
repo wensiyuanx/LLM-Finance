@@ -43,6 +43,7 @@ class BacktestRequest(BaseModel):
     cash: float = 100000.0
     strategy: str = "etf"  # "etf" or "standard" or "leveraged"
     user_id: int = 1
+    start_date: Optional[str] = None
 
 
 def upload_to_tos(local_file_path: str, object_key: str) -> str:
@@ -65,19 +66,19 @@ def run_backtest_job(job_id: str, req: BacktestRequest):
             success = etf_fetch(code, req.days)
             if not success:
                 raise RuntimeError("Failed to fetch data for ETF backtest. Check that FutuOpenD is running.")
-            etf_backtest(code, req.cash)
+            etf_backtest(code, req.cash, start_date=req.start_date)
             local_plot_file = f"etf_backtest_result_{code}.png"
         elif strategy == "leveraged":
             success = lev_fetch(code, req.days)
             if not success:
                 raise RuntimeError("Failed to fetch data for Leveraged ETF backtest. Check that FutuOpenD is running.")
-            lev_backtest(code, req.cash)
+            lev_backtest(code, req.cash, start_date=req.start_date)
             local_plot_file = f"lev_etf_backtest_result_{code}.png"
         else:
             success = std_fetch(code, req.days)
             if not success:
                 raise RuntimeError("Failed to fetch data for standard backtest. Check that FutuOpenD is running.")
-            std_backtest(code, req.cash)
+            std_backtest(code, req.cash, start_date=req.start_date)
             local_plot_file = f"backtest_result_{code}.png"
 
         if not os.path.exists(local_plot_file):

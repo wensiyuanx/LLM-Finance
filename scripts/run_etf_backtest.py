@@ -82,9 +82,13 @@ def run_backtest(code, cash=100000.0, start_date=None):
     import backtrader as bt
     from scripts.backtest.etf_grid_strategy import ETFGridMeanReversionStrategy
     
+    from_date = None
+    if start_date:
+        from_date = datetime.strptime(start_date, "%Y-%m-%d")
+        
     cerebro = bt.Cerebro()
     curr_market = 'HK' if code.startswith('HK.') else 'A'
-    cerebro.addstrategy(ETFGridMeanReversionStrategy, market=curr_market)
+    cerebro.addstrategy(ETFGridMeanReversionStrategy, market=curr_market, start_date=from_date)
     
     logger.info(f"Loading data for {code} from database...")
     
@@ -102,6 +106,8 @@ def run_backtest(code, cash=100000.0, start_date=None):
     df_60m['time_key'] = pd.to_datetime(df_60m['time_key'])
     
     # Data0: Hourly
+    # We do NOT use fromdate=from_date here because it prevents indicators from warming up.
+    # Instead, we pass start_date to the strategy which handles the logic in next().
     data0 = bt.feeds.PandasData(
         dataname=df_60m, datetime='time_key',
         open='open', high='high', low='low', close='close', volume='volume',
@@ -234,7 +240,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run backtest for a specific stock code.")
     parser.add_argument("code", type=str, help="Stock code (e.g., HK.00700, SZ.159915)")
     parser.add_argument("--days", type=int, default=550, help="Days of history to fetch (default: 550)")
-    parser.add_argument("--start_date", type=str, default="2025-01-01", help="Backtest start date (YYYY-MM-DD, default: 2025-01-01)")
+    parser.add_argument("--start_date", type=str, default=None, help="Backtest start date (YYYY-MM-DD)")
     parser.add_argument("--cash", type=float, default=100000.0, help="Initial cash (default: 100000)")
     
     args = parser.parse_args()

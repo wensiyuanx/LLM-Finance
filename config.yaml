@@ -1,0 +1,34 @@
+# LLM-Finance Strategy Configuration
+
+global:
+  data_window_days: 550
+  incremental_fetch_overlap_days: 10
+  slippage_perc: 0.002
+  commission: 0.001
+
+strategies:
+  # 杠杆 ETF 专属动量防耗损策略 (lev_etf_logic.py)
+  leveraged_etf:
+    max_tranches: 3             # 金字塔网格最大加仓批次
+    grid_drop_pct: 0.08         # 触发下一批次加仓的回调幅度 (8%)
+    atr_stop_mult: 3.0          # 硬止损：入场价 - 3 * ATR
+    atr_trail_mult: 2.0         # 跟踪止盈：最高价 - 2 * ATR
+    volume_surge_mult: 1.5      # 突破买入要求的放量倍数 (150% of 5-period SMA)
+    adx_min_trend: 20           # 趋势强度的最低阈值
+    adx_super_trend: 40         # 超级主升浪的阈值 (可无视日线过滤)
+    rsi_extreme_overbought: 85  # 极端超买逃顶阈值
+    extreme_profit_taking: 0.15 # 触发逃顶所需的最低浮盈 (15%)
+    initial_position_pct: 0.50  # 首仓动用总资金的比例 (50%)
+
+  # 宽基 ETF 激进网格+趋势策略 (logic.py / etf_grid_strategy.py)
+  broad_etf:
+    max_tranches: 4
+    grid_drop_pct: 0.05
+    profit_target_pct: 0.05     # 动态追踪止盈回撤阈值 (5%)
+
+  # 个股标准 MTF 策略 (logic.py / backtrader_strategy.py)
+  standard_stock:
+    atr_stop_loss_mult: 2.5
+    atr_take_profit_mult: 3.0
+    fixed_stop_loss: -0.08      # 盘中硬止损底线
+    fixed_take_profit: 0.15     # 盘中硬止盈上限

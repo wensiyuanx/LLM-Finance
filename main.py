@@ -13,14 +13,18 @@ from engine.executor import OrderExecutor
 from scripts.visualizer import generate_kline_chart
 from engine.time_utils import is_market_open
 import pandas as pd
-import concurrent.futures
-from typing import Dict
+import asyncio
+from typing import Dict, List
+from config import get_config, refresh_config
+from sqlalchemy import select, delete, func
 
 # Fix for FuTu API requiring HOME environment variable
 if 'HOME' not in os.environ:
     os.environ['HOME'] = os.getcwd()
 
 logger = logging.getLogger(__name__)
+
+config = get_config()
 
 # ---------------------------------------------------------------------------
 # Data-window constants
@@ -29,7 +33,8 @@ logger = logging.getLogger(__name__)
 # 60-day LSTM window adds another 60 trading days (~85 calendar days).
 # We pull 550 calendar days to guarantee enough trading days after weekends
 # and holidays, with a comfortable buffer.
-DATA_WINDOW_DAYS = 550
+DATA_WINDOW_DAYS = config["global"]["data_window_days"]
+INCREMENTAL_OVERLAP = config["global"]["incremental_fetch_overlap_days"]
 
 # Fraction of available wallet balance used per BUY order.
 # 0.25 = 25% max position per signal — basic fixed-fraction position sizing.
@@ -48,20 +53,23 @@ def format_futu_df(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def save_klines_to_db(db, user_id: int, code: str, df: pd.DataFrame, timeframe: str = '1d'):
+async def save_klines_to_db(db, user_id: int, code: str, df: pd.DataFrame, timeframe: str = '1d'):
     """Bulk upsert K-line rows: one query to find existing timestamps, then batch insert new ones."""
     if df is None or df.empty:
         return
     has_turnover = 'turnover' in df.columns
     timestamps = df.index.tolist()
-    existing = {
-        r.time_key for r in db.query(KLineData.time_key).filter(
-            KLineData.user_id == user_id,
-            KLineData.code == code,
-            KLineData.timeframe == timeframe,
-            KLineData.time_key.in_(timestamps)
-        ).all()
-    }
+    
+    # Query existing timestamps
+    stmt = select(KLineData.time_key).filter(
+        KLineData.user_id == user_id,
+        KLineData.code == code,
+        KLineData.timeframe == timeframe,
+        KLineData.time_key.in_(timestamps)
+    )
+    result = await db.execute(stmt)
+    existing = {r[0] for r in result.all()}
+    
     new_rows = []
     for index, row in df.iterrows():
         if index not in existing:
@@ -74,66 +82,72 @@ def save_klines_to_db(db, user_id: int, code: str, df: pd.DataFrame, timeframe: 
                 volume=row['volume'], turnover=turnover
             ))
     if new_rows:
-        db.bulk_save_objects(new_rows)
-        db.commit()
+        db.add_all(new_rows)
+        await db.commit()
         logger.debug("Saved %d new %s K-line rows for %s", len(new_rows), timeframe, code)
 
     # --- Sliding Window Pruning ---
-    # Keep only the latest records for this specific code/user/timeframe
     try:
         max_records = 5000 if timeframe == '60m' else 1500
         # Find the threshold timestamp
-        recent_klines = (
-            db.query(KLineData.time_key)
+        recent_klines_stmt = (
+            select(KLineData.time_key)
             .filter(KLineData.user_id == user_id, KLineData.code == code, KLineData.timeframe == timeframe)
             .order_by(KLineData.time_key.desc())
             .offset(max_records - 1)
             .limit(1)
-            .first()
         )
+        recent_klines_res = await db.execute(recent_klines_stmt)
+        recent_klines = recent_klines_res.first()
 
         if recent_klines:
-            threshold_time = recent_klines.time_key
+            threshold_time = recent_klines[0]
             # Delete any record older than the threshold record
-            db.query(KLineData).filter(
+            del_stmt = delete(KLineData).filter(
                 KLineData.user_id == user_id,
                 KLineData.code == code,
                 KLineData.timeframe == timeframe,
                 KLineData.time_key < threshold_time
-            ).delete()
-            db.commit()
+            )
+            await db.execute(del_stmt)
+            await db.commit()
             logger.debug(f"Pruned {timeframe} K-line data for {code} (kept latest {max_records})")
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         logger.error("Error during %s K-line pruning for %s: %s", timeframe, code, e)
 
 
-def save_signal_to_db(db, user_id: int, code: str, action, reason: str, close_price: float):
+async def save_signal_to_db(db, user_id: int, code: str, action, reason: str, close_price: float):
     db.add(SignalRecord(
         user_id=user_id, code=code,
         action=action, reason=reason, close_price=close_price
     ))
-    db.commit()
+    await db.commit()
 
 
-def get_wallet(db, user_id: int, market_type):
-    return db.query(UserWallet).filter(
+async def get_wallet(db, user_id: int, market_type):
+    stmt = select(UserWallet).filter(
         UserWallet.user_id == user_id,
         UserWallet.market_type == market_type
-    ).first()
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
 
 
-def update_wallet(db, wallet, delta: float):
+async def update_wallet(db, wallet, delta: float):
     wallet.balance = round(wallet.balance + delta, 4)
-    db.commit()
+    await db.commit()
 
 
-def get_holding(db, user_id: int, code: str, market_type) -> Holding:
+async def get_holding(db, user_id: int, code: str, market_type) -> Holding:
     """Return the persistent Holding row; create a flat one if it doesn't exist yet."""
-    holding = db.query(Holding).filter(
+    stmt = select(Holding).filter(
         Holding.user_id == user_id,
         Holding.code == code
-    ).first()
+    )
+    result = await db.execute(stmt)
+    holding = result.scalar_one_or_none()
+    
     if holding is None:
         holding = Holding(
             user_id=user_id, code=code,
@@ -141,32 +155,28 @@ def get_holding(db, user_id: int, code: str, market_type) -> Holding:
             market_type=market_type
         )
         db.add(holding)
-        db.commit()
-        db.refresh(holding)
+        await db.commit()
+        await db.refresh(holding)
     return holding
 
 
-def update_holding_buy(db, holding: Holding, qty: float, price: float, is_t1: bool = True, is_trend: bool = False):
+async def update_holding_buy(db, holding: Holding, qty: float, price: float, is_t1: bool = True, is_trend: bool = False):
     """Weighted-average cost update on buy. T+1 means bought shares are NOT sellable today."""
     total_cost = (holding.quantity * holding.avg_cost) + (qty * price)
     holding.quantity = round(holding.quantity + qty, 6)
     holding.avg_cost = round(total_cost / holding.quantity, 6)
-    # If not T+1 (like HK), instantly sellable. Otherwise, delayed to next day.
     if not is_t1:
         holding.sellable_quantity = round(holding.sellable_quantity + qty, 6)
     
-    # If this is a trend entry, mark it in the persistent holding
     if is_trend:
         holding.is_trend = 1
     
-    # Initialize highest_price on buy
-    holding.highest_price = price
-        
+    holding.highest_price = max(holding.highest_price, price)
     holding.tranches_count += 1
-    db.commit()
+    await db.commit()
 
 
-def update_holding_sell(db, holding: Holding, qty: float):
+async def update_holding_sell(db, holding: Holding, qty: float):
     """Reduce position on sell."""
     holding.quantity = round(holding.quantity - qty, 6)
     holding.sellable_quantity = round(holding.sellable_quantity - qty, 6)
@@ -175,20 +185,22 @@ def update_holding_sell(db, holding: Holding, qty: float):
         holding.avg_cost = 0.0
         holding.sellable_quantity = 0.0
         holding.tranches_count = 0
-        holding.is_trend = 0 # Clear trend flag on full exit
+        holding.is_trend = 0
     else:
         holding.tranches_count = max(1, holding.tranches_count - 1)
-    db.commit()
+    await db.commit()
 
-def rollover_t1_holdings(db_session, user_id=None):
+
+async def rollover_t1_holdings(db_session, user_id=None):
     """Called at start of day: all quantity becomes sellable_quantity."""
-    from database.models import Holding
-    query = db_session.query(Holding)
-    if user_id: query = query.filter(Holding.user_id == user_id)
-    holdings = query.all()
+    stmt = select(Holding)
+    if user_id:
+        stmt = stmt.filter(Holding.user_id == user_id)
+    result = await db_session.execute(stmt)
+    holdings = result.scalars().all()
     for h in holdings:
         h.sellable_quantity = h.quantity
-    db_session.commit()
+    await db_session.commit()
 
 
 
@@ -239,267 +251,243 @@ class StrategyRouter:
                 is_pre_close=is_pre_close
             )
 
-def rollover_t1_holdings_task():
-    """Independent task to rollover T+1 holdings in the morning."""
-    session = SessionLocal()
-    try:
-        logger.info("Executing morning T+1 holdings rollover...")
-        rollover_t1_holdings(session)
-    finally:
-        session.close()
+async def fetch_and_compute(futu, asset, start_date_fetch, end_date):
+    """Async K-line fetching and indicator calculation."""
+    df_day = None
+    df_60m = None
+    if futu:
+        from futu import KLType
+        from strategy.indicators import calculate_indicators
+        
+        # Concurrent fetch for both timeframes
+        df_day, df_60m = await asyncio.gather(
+            asyncio.to_thread(futu.get_historical_klines, asset.code, start_date=start_date_fetch, end_date=end_date, ktype=KLType.K_DAY),
+            asyncio.to_thread(futu.get_historical_klines, asset.code, start_date=start_date_fetch, end_date=end_date, ktype=KLType.K_60M)
+        )
+        
+        if df_day is not None:
+            df_day = format_futu_df(df_day)
+        if df_60m is not None:
+            df_60m = format_futu_df(df_60m)
+            
+        if df_day is not None and not df_day.empty and df_60m is not None and not df_60m.empty:
+            # Pre-calculate indicators
+            df_60m = calculate_indicators(df_60m)
+            df_day = calculate_indicators(df_day)
+    
+    return asset.code, df_day, df_60m
 
-def run_trading_bot(market_filter=None):
+async def rollover_t1_holdings_task():
+    """Independent task to rollover T+1 holdings in the morning."""
+    async with AsyncSessionLocal() as session:
+        try:
+            logger.info("Executing morning T+1 holdings rollover...")
+            await rollover_t1_holdings(session)
+        finally:
+            await session.close()
+
+
+async def run_trading_bot(market_filter=None):
     """
-    market_filter: optional list of MarketType to limit which markets are processed.
-    e.g. [MarketType.A_SHARE, MarketType.HK_SHARE] for the Asia session job,
-         or None to run all markets.
+    Main asynchronous trading bot loop.
     """
     init_db()
-    logger.info("Trading bot started%s.",
+    # Hot-reload config at the start of each run
+    config = refresh_config()
+    logger.info("Trading bot started%s (Config Hot-Reloaded).",
                 f" | filter: {[m.value for m in market_filter]}" if market_filter else "")
 
     futu = FutuClient()
-    futu_connected = futu.connect()
+    futu_connected = await asyncio.to_thread(futu.connect)
     if not futu_connected:
-        print("Warning: Futu OpenAPI not connected. A-Share / HK-Share fetching will fail.")
+        logger.error("Futu OpenAPI not connected. K-Line fetching will fail.")
 
-    # yf_client = YFinanceClient()  # Commented out as YFinanceClient is not imported/used
-    db_session = SessionLocal()
-    executor = OrderExecutor(db_session=db_session, futu_client=futu, simulate=True)
+    async with AsyncSessionLocal() as db_session:
+        executor = OrderExecutor(db_session=db_session, futu_client=futu, simulate=True)
 
-    try:
-        # Large enough window so SMA_200 and the 60-day LSTM window are fully warmed up
-        start_date = (datetime.now() - timedelta(days=DATA_WINDOW_DAYS)).strftime("%Y-%m-%d")
-        end_date   = datetime.now().strftime("%Y-%m-%d")
-
-        assets_query = db_session.query(AssetMonitor).filter(AssetMonitor.is_active == 1)
-        if market_filter:
-            assets_query = assets_query.filter(AssetMonitor.market_type.in_(market_filter))
-        active_assets = assets_query.all()
-        
-        if not active_assets:
-            logger.warning("No active A/HK assets found for this run.")
-            return
-
-        from collections import defaultdict
-        user_market_assets = defaultdict(list)
-        for asset in active_assets:
-            user_market_assets[(asset.user_id, asset.market_type)].append(asset)
+        try:
+            # Constants from hot-reloaded config
+            DATA_WINDOW_DAYS = config["global"]["data_window_days"]
+            INCREMENTAL_OVERLAP = config["global"]["incremental_fetch_overlap_days"]
+            POSITION_SIZE_FRAC = config["strategies"].get("global_max_pos", 0.25)
             
-        # Async Data Fetch Helper
-        def fetch_asset_data(asset):
-            df_day = None
-            df_60m = None
-            if futu_connected:
-                from futu import KLType
+            start_date = (datetime.now() - timedelta(days=DATA_WINDOW_DAYS)).strftime("%Y-%m-%d")
+            end_date   = datetime.now().strftime("%Y-%m-%d")
+
+            stmt = select(AssetMonitor).filter(AssetMonitor.is_active == 1)
+            if market_filter:
+                stmt = stmt.filter(AssetMonitor.market_type.in_(market_filter))
+            result = await db_session.execute(stmt)
+            active_assets = result.scalars().all()
+            
+            if not active_assets:
+                logger.warning("No active A/HK assets found for this run.")
+                return
+
+            from collections import defaultdict
+            user_market_assets = defaultdict(list)
+            for asset in active_assets:
+                user_market_assets[(asset.user_id, asset.market_type)].append(asset)
                 
-                # Optimize Data Fetching: Check DB for latest record to avoid fetching 550 days every time
-                latest_db_time = None
-                try:
-                    from sqlalchemy import text
-                    result = db_session.execute(text(f"SELECT MAX(time_key) FROM kline_data WHERE code='{asset.code}' AND timeframe='60m'"))
-                    latest_db_time = result.scalar()
-                except Exception as e:
-                    logger.warning(f"Failed to query latest db time for {asset.code}: {e}")
-
-                if latest_db_time:
-                    # If we have data, only fetch from the latest time minus a small overlap (e.g. 10 days for indicator safety)
-                    latest_dt = pd.to_datetime(latest_db_time)
-                    start_date_fetch = (latest_dt - timedelta(days=10)).strftime("%Y-%m-%d")
-                    logger.info(f"Incremental fetch for {asset.code} starting from {start_date_fetch}")
-                else:
-                    start_date_fetch = start_date
-                    logger.info(f"Full fetch for {asset.code} starting from {start_date_fetch}")
-
-                # Fetch daily data
-                df_day = futu.get_historical_klines(asset.code, start_date=start_date_fetch, end_date=end_date, ktype=KLType.K_DAY)
-                # Fetch 60M data
-                df_60m = futu.get_historical_klines(asset.code, start_date=start_date_fetch, end_date=end_date, ktype=KLType.K_60M)
-                
-                if df_day is not None:
-                    df_day = format_futu_df(df_day)
-                if df_60m is not None:
-                    df_60m = format_futu_df(df_60m)
-            
-            return asset.code, df_day, df_60m
-
-        for (user_id, market_type), assets in user_market_assets.items():
-            wallet = get_wallet(db_session, user_id, market_type)
-            if not wallet:
-                logger.warning(f"No wallet found for User {user_id} - {market_type.name}. Skipping {len(assets)} assets.")
-                continue
-                
-            holdings = db_session.query(Holding).filter(
-                Holding.user_id == user_id, 
-                Holding.market_type == market_type
-            ).all()
-            holdings_value = sum(h.quantity * h.avg_cost for h in holdings)
-            total_value = wallet.balance + holdings_value
-            
-            # Global exposure limit: 90% (Keep 10% Cash Reserve)
-            max_exposure = 0.90
-            logger.info("Portfolio Status | Value: %.2f | Cash: %.2f | Exposure: %.1f%% | Limit: %.1f%%",
-                        total_value, wallet.balance, (holdings_value/total_value if total_value > 0 else 0)*100, max_exposure*100)
-            
-            pm = PortfolioManager(
-                db_session=db_session, 
-                current_cash=wallet.balance, 
-                total_value=total_value, 
-                max_position_pct=POSITION_SIZE_FRAC,
-                max_total_exposure_pct=max_exposure
-            )
-            signals_context = []
-            asset_stats = {} 
-            
-            logger.info(f"Fetching data concurrently for User {user_id} - {market_type.name}...")
-            # Fetch data sequentially instead of concurrently to prevent MySQL threading issues
-            code_to_df = {}
-            for a in assets:
-                code, df_day, df_60m = fetch_asset_data(a)
-                code_to_df[code] = {'1d': df_day, '60m': df_60m}
-
-            for asset in assets:
-                code = asset.code
-                data_dict = code_to_df.get(code)
-                if not data_dict:
+            for (user_id, market_type), assets in user_market_assets.items():
+                wallet = await get_wallet(db_session, user_id, market_type)
+                if not wallet:
+                    logger.warning(f"No wallet found for User {user_id} - {market_type.name}. Skipping {len(assets)} assets.")
                     continue
                     
-                klines_day = data_dict.get('1d')
-                klines_60m = data_dict.get('60m')
-
-                if klines_day is None or klines_day.empty or klines_60m is None or klines_60m.empty:
-                    logger.warning(f"No complete K-line data fetched for {code}.")
-                    continue
-                    
-                from strategy.indicators import calculate_indicators
-                # Pre-calculate indicators ONCE to avoid duplicate work in strategy logic
-                klines_60m = calculate_indicators(klines_60m)
-                klines_day = calculate_indicators(klines_day)
-                
-                # Save data to DB 
-                save_klines_to_db(db_session, user_id, code, klines_day, timeframe='1d')
-                save_klines_to_db(db_session, user_id, code, klines_60m, timeframe='60m')
-
-                try:
-                    # Visualizer can just chart the hourly data for now
-                    chart_df = klines_60m.copy()
-                    generate_kline_chart(chart_df, code)
-                except Exception as viz_e:
-                    logger.error(f"Failed to generate chart for {code}: {viz_e}")
-
-                # Load persistent holding
-                holding = get_holding(db_session, user_id, code, market_type)
-                current_price = float(klines_60m['close'].iloc[-1])
-                
-                # Update highest price for all assets (for trailing stop)
-                # For existing positions with 0 highest_price, only init if profitable to avoid premature stops
-                if holding.quantity > 0:
-                    if holding.highest_price == 0:
-                        if current_price > holding.avg_cost:
-                            holding.highest_price = current_price
-                            logger.info(f"[{code}] Initialized highest price at profit peak: {holding.highest_price}")
-                    elif current_price > holding.highest_price:
-                        holding.highest_price = current_price
-                        logger.info(f"[{code}] New highest price recorded: {holding.highest_price}")
-                    db_session.commit()
-
-                # Check if it's pre-close (e.g. 14:50 for A-share, 15:50 for HK)
-                now_time = datetime.now()
-                is_pre_close = False
-                if market_type == MarketType.A_SHARE and now_time.hour == 14 and now_time.minute >= 40:
-                    is_pre_close = True
-                elif market_type == MarketType.HK_SHARE and now_time.hour == 15 and now_time.minute >= 40:
-                    is_pre_close = True
-
-                # Delegate to Strategy Router
-                action, reason, score, is_trend_entry = StrategyRouter.get_strategy_signals(
-                    asset, klines_60m, klines_day, holding, is_pre_close
+                stmt_h = select(Holding).filter(
+                    Holding.user_id == user_id, 
+                    Holding.market_type == market_type
                 )
-                latest_close = float(klines_60m['close'].iloc[-1])
-                logger.info("[%s] Signal: %s — %s (Sellable: %s, Score: %.1f)", code, action.name, reason, holding.sellable_quantity, score)
-                save_signal_to_db(db_session, user_id, code, action, reason, latest_close)
+                res_h = await db_session.execute(stmt_h)
+                holdings = res_h.scalars().all()
+                holdings_value = sum(h.quantity * h.avg_cost for h in holdings)
+                total_value = wallet.balance + holdings_value
                 
-                asset_stats[code] = {'holding': holding}
+                # Global exposure limit: 90% (Keep 10% Cash Reserve)
+                max_exposure = 0.90
+                logger.info("Portfolio Status | Value: %.2f | Cash: %.2f | Exposure: %.1f%% | Limit: %.1f%%",
+                            total_value, wallet.balance, (holdings_value/total_value if total_value > 0 else 0)*100, max_exposure*100)
                 
-                # A-Share T+1 Morning Protection
-                current_hour = datetime.now().hour
-                if market_type == MarketType.A_SHARE and action == TradeAction.BUY and current_hour < 14:
-                    logger.warning("[%s] Suppressed BUY signal due to A-Share morning T+1 risk.", code)
-                    continue
-
-                if action in [TradeAction.BUY, TradeAction.SELL]:
-                    signals_context.append({
-                        'code': code,
-                        'market_type': market_type,
-                        'action': action,
-                        'price': latest_close,
-                        'sellable_qty': holding.sellable_quantity,
-                        'reason': reason,
-                        'score': score,
-                        'is_trend_entry': is_trend_entry,
-                        'is_etf': is_etf_asset,
-                        'tranches_count': holding.tranches_count,
-                        'current_holding_val': holding.quantity * latest_close
-                    })
-
-            # Portfolio Manager resolution
-            executable_orders = pm.evaluate_signals(signals_context)
-            
-            # Log skipped signals if any
-            executed_codes = {o['code'] for o in executable_orders}
-            for ctx in signals_context:
-                if ctx['code'] not in executed_codes:
-                    logger.info("[%s] Signal SKIPPED by PortfolioManager (Reason: Capital Limit or Max Allocation)", ctx['code'])
-            
-            # Execute actual evaluated orders
-            for order in executable_orders:
-                code = order['code']
-                action = order['action']
-                qty = order['quantity']
-                # Add 0.2% slippage to simulate limit-order execution
-                price = order['price'] * 1.002 if action == TradeAction.BUY else order['price'] * 0.998
-                reason = order['reason']
-                holding = asset_stats[code]['holding']
+                pm = PortfolioManager(
+                    db_session=db_session, 
+                    current_cash=wallet.balance, 
+                    total_value=total_value, 
+                    max_position_pct=POSITION_SIZE_FRAC,
+                    max_total_exposure_pct=max_exposure
+                )
+                signals_context = []
+                asset_stats = {} 
                 
-                # Determine T+1 applicability (True for A-Share, False for HK)
-                is_t1 = (market_type == MarketType.A_SHARE)
+                logger.info(f"Fetching data concurrently for {len(assets)} assets...")
                 
-                # Evaluate if market is open for this market type
-                market_open = is_market_open(market_type)
-                if not market_open:
-                    logger.warning("[%s] Market is CLOSED (%s). Signal: %s — %s. Skipping Execution.", 
-                                   code, market_type.name, action.name, reason)
-                    continue
-
-                if action == TradeAction.SELL:
-                    trade_record = executor.execute_trade(
-                        user_id, code, action,
-                        price=price, quantity=qty, reason=reason
+                # Prepare fetch tasks
+                fetch_coroutines = []
+                for a in assets:
+                    latest_db_time_stmt = select(func.max(KLineData.time_key)).filter(
+                        KLineData.code == a.code, KLineData.timeframe == '60m'
                     )
-                    if trade_record:
-                        proceeds = qty * price
-                        update_wallet(db_session, wallet, proceeds)
-                        update_holding_sell(db_session, holding, qty)
-                        logger.info(f"已卖出 {qty} 股 {code} @ {price:.3f}, 回款 {proceeds:.2f} {wallet.currency}")
+                    latest_db_time_res = await db_session.execute(latest_db_time_stmt)
+                    latest_db_time = latest_db_time_res.scalar()
+
+                    if latest_db_time:
+                        latest_dt = pd.to_datetime(latest_db_time)
+                        start_date_fetch = (latest_dt - timedelta(days=INCREMENTAL_OVERLAP)).strftime("%Y-%m-%d")
+                    else:
+                        start_date_fetch = start_date
+                    
+                    fetch_coroutines.append(fetch_and_compute(futu, a, start_date_fetch, end_date))
+                    
+                # Execute concurrently
+                fetch_results = await asyncio.gather(*fetch_coroutines, return_exceptions=True)
+                code_to_df = {}
+                for res in fetch_results:
+                    if isinstance(res, Exception):
+                        logger.error(f"Concurrent fetch task failed: {res}")
+                        continue
+                    res_code, res_df_day, res_df_60m = res
+                    code_to_df[res_code] = {'1d': res_df_day, '60m': res_df_60m}
+
+                for asset in assets:
+                    code = asset.code
+                    data_dict = code_to_df.get(code)
+                    if not data_dict: continue
                         
-                elif action == TradeAction.BUY:
-                    trade_cost = qty * price
-                    trade_record = executor.execute_trade(
-                        user_id, code, action,
-                        price=price, quantity=qty, reason=reason
-                    )
-                    if trade_record:
-                        update_wallet(db_session, wallet, -trade_cost)
-                        update_holding_buy(db_session, holding, qty, price, is_t1=is_t1, is_trend=order.get('is_trend_entry', False))
-                        logger.info(f"已买入 {qty} 股 {code} @ {price:.3f}, 花费 {trade_cost:.2f} {wallet.currency}")
+                    klines_day = data_dict.get('1d')
+                    klines_60m = data_dict.get('60m')
 
-    except Exception as e:
-        db_session.rollback()
-        logger.error("Trading bot error: %s", e, exc_info=True)
-    finally:
-        futu.close()
-        db_session.close()
+                    if klines_day is None or klines_day.empty or klines_60m is None or klines_60m.empty:
+                        logger.warning(f"No complete K-line data fetched for {code}.")
+                        continue
+                    
+                    # Save data to DB (Async)
+                    await save_klines_to_db(db_session, user_id, code, klines_day, timeframe='1d')
+                    await save_klines_to_db(db_session, user_id, code, klines_60m, timeframe='60m')
+
+                    try:
+                        await asyncio.to_thread(generate_kline_chart, klines_60m.copy(), code)
+                    except Exception as viz_e:
+                        logger.error(f"Failed to generate chart for {code}: {viz_e}")
+
+                    # Load persistent holding
+                    holding = await get_holding(db_session, user_id, code, market_type)
+                    current_price = float(klines_60m['close'].iloc[-1])
+                    
+                    if holding.quantity > 0:
+                        if holding.highest_price == 0:
+                            if current_price > holding.avg_cost:
+                                holding.highest_price = current_price
+                        elif current_price > holding.highest_price:
+                            holding.highest_price = current_price
+                        await db_session.commit()
+
+                    now_time = datetime.now()
+                    is_pre_close = False
+                    if market_type == MarketType.A_SHARE and now_time.hour == 14 and now_time.minute >= 40:
+                        is_pre_close = True
+                    elif market_type == MarketType.HK_SHARE and now_time.hour == 15 and now_time.minute >= 40:
+                        is_pre_close = True
+
+                    action, reason, score, is_trend_entry = StrategyRouter.get_strategy_signals(
+                        asset, klines_60m, klines_day, holding, is_pre_close
+                    )
+                    latest_close = float(klines_60m['close'].iloc[-1])
+                    logger.info("[%s] Signal: %s — %s (Sellable: %s, Score: %.1f)", code, action.name, reason, holding.sellable_quantity, score)
+                    await save_signal_to_db(db_session, user_id, code, action, reason, latest_close)
+                    
+                    asset_stats[code] = {'holding': holding}
+                    
+                    if market_type == MarketType.A_SHARE and action == TradeAction.BUY and now_time.hour < 14:
+                        logger.warning("[%s] Suppressed BUY signal due to A-Share morning T+1 risk.", code)
+                        continue
+
+                    if action in [TradeAction.BUY, TradeAction.SELL]:
+                        is_etf_asset = bool(getattr(asset, 'is_etf', False))
+                        signals_context.append({
+                            'code': code, 'market_type': market_type, 'action': action,
+                            'price': latest_close, 'sellable_qty': holding.sellable_quantity,
+                            'reason': reason, 'score': score, 'is_trend_entry': is_trend_entry,
+                            'is_etf': is_etf_asset, 'tranches_count': holding.tranches_count,
+                            'current_holding_val': holding.quantity * latest_close
+                        })
+
+                # Portfolio Manager resolution
+                executable_orders = pm.evaluate_signals(signals_context)
+                
+                # Execute evaluated orders
+                for order in executable_orders:
+                    code = order['code']
+                    action = order['action']
+                    qty = order['quantity']
+                    price = order['price'] * 1.002 if action == TradeAction.BUY else order['price'] * 0.998
+                    reason = order['reason']
+                    holding = asset_stats[code]['holding']
+                    is_t1 = (market_type == MarketType.A_SHARE)
+                    
+                    if not is_market_open(market_type):
+                        logger.warning("[%s] Market is CLOSED. Skipping Execution.", code)
+                        continue
+
+                    if action == TradeAction.SELL:
+                        trade_record = await asyncio.to_thread(executor.execute_trade, user_id, code, action, price=price, quantity=qty, reason=reason)
+                        if trade_record:
+                            await update_wallet(db_session, wallet, qty * price)
+                            await update_holding_sell(db_session, holding, qty)
+                            logger.info(f"已卖出 {qty} 股 {code} @ {price:.3f}")
+                            
+                    elif action == TradeAction.BUY:
+                        trade_record = await asyncio.to_thread(executor.execute_trade, user_id, code, action, price=price, quantity=qty, reason=reason)
+                        if trade_record:
+                            await update_wallet(db_session, wallet, -(qty * price))
+                            await update_holding_buy(db_session, holding, qty, price, is_t1=is_t1, is_trend=order.get('is_trend_entry', False))
+                            logger.info(f"已买入 {qty} 股 {code} @ {price:.3f}")
+
+        except Exception as e:
+            await db_session.rollback()
+            logger.error("Trading bot error: %s", e, exc_info=True)
+        finally:
+            futu.close()
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)-8s] %(name)s — %(message)s")
-    run_trading_bot()
+    asyncio.run(run_trading_bot())

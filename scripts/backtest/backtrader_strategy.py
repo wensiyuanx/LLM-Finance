@@ -25,6 +25,7 @@ class MultiTimeframeStrategy(bt.Strategy):
         ('fixed_stop_loss', -0.08),  
         ('fixed_take_profit', 0.15), 
         ('market', 'A'),         # 'A' for T+1, 'HK' for T+0
+        ('start_date', None),
     )
 
     def __init__(self):
@@ -98,6 +99,10 @@ class MultiTimeframeStrategy(bt.Strategy):
         self.order = None
 
     def next(self):
+        if self.params.start_date:
+            if self.datas[0].datetime.date(0) < self.params.start_date.date():
+                return
+                
         # Wait for enough daily data to calculate daily SMA
         if len(self.datas[1]) < self.params.sma_trend_daily:
             return

@@ -20,6 +20,7 @@ class ETFGridMeanReversionStrategy(bt.Strategy):
         ('take_profit_pct', 0.04), # 整体仓位的目标利润 4% (清仓止盈)
         ('max_tranches', 4),     # 最多允许分 4 批建仓（防弹衣）
         ('market', 'A'),         # 'A' or 'HK'
+        ('start_date', None),    # 策略正式开始交易的时间
     )
 
     def __init__(self):
@@ -33,6 +34,9 @@ class ETFGridMeanReversionStrategy(bt.Strategy):
         self.sma20  = bt.indicators.SMA(self.datas[0], period=20)
         self.sma60  = bt.indicators.SMA(self.datas[0], period=60)
         self.sma120 = bt.indicators.SMA(self.datas[0], period=120)
+        
+        # ADX 趋势强度指标 (用于动态止盈保护)
+        self.adx = bt.indicators.ADX(self.datas[0], period=14)
         
         # 记录上次卖出后价格的最低点，用于判断是否形成新的趋势
         self._last_exit_price = None
@@ -101,6 +105,12 @@ class ETFGridMeanReversionStrategy(bt.Strategy):
         self.order = None
 
     def next(self):
+        # 严格遵守设置的开始交易时间
+        if self.params.start_date:
+            dt_now = self.datas[0].datetime.date(0)
+            if dt_now < self.params.start_date.date():
+                return
+                
         if self.order:
             return
 
@@ -138,11 +148,52 @@ class ETFGridMeanReversionStrategy(bt.Strategy):
                 sell_size = self.position.size
                 sell_reason = f"触发动态跟踪止盈 (回撤5%), 锁定收益: {profit_pct*100:.1f}%"
                 
-            # 退出检票 B：趋势破位 (仅针对趋势单，作为双重保障)
-            elif self._is_trend_position and (self.sma20[0] < self.sma60[0] or current_price < self.sma60[0]):
-                sell_signal = True
-                sell_size = self.position.size
-                sell_reason = f"趋势破位止损 (SMA20<60), 收益: {profit_pct*100:.1f}%"
+            # 退出检票 B：趋势破位 (针对趋势单)
+            # 改进：增加“保本”与“阶梯止盈”逻辑，解决震荡市盈利回吐问题
+            elif self._is_trend_position:
+                # 记录趋势单持仓期间的最高价
+                if not hasattr(self, '_trend_highest'): self._trend_highest = current_price
+                self._trend_highest = max(self._trend_highest, current_price)
+                
+                # 初始化动态止损线 (若尚未设定)
+                if not hasattr(self, '_dynamic_exit_price') or self._dynamic_exit_price is None:
+                    self._dynamic_exit_price = avg_cost * 0.94 # 初始硬止损 6%
+                
+                # 1. 保本策略 (Breakeven): 利润 > 2% 时，止损上移至成本+0.5%
+                if profit_pct >= 0.02:
+                    self._dynamic_exit_price = max(self._dynamic_exit_price, avg_cost * 1.005)
+                
+                # 2. 阶梯与自适应跟踪 (Adaptive Trailing):
+                is_strong_trend = self.adx[0] > 25 # ADX > 25 认为趋势强
+                
+                if 0.015 <= profit_pct < 0.04:
+                    if not is_strong_trend:
+                        # 震荡市或趋势弱：止损紧跟最高价下 2%
+                        tight_stop = self._trend_highest * 0.98
+                        self._dynamic_exit_price = max(self._dynamic_exit_price, tight_stop)
+                    else:
+                        # 趋势强：稍微放宽，防止洗盘，下移至 4% (博大利)
+                        trend_stop = self._trend_highest * 0.96
+                        self._dynamic_exit_price = max(self._dynamic_exit_price, trend_stop)
+                        
+                elif profit_pct >= 0.04:
+                    if is_strong_trend:
+                        # 大趋势确认：止损留出 6% 宽广波动空间，捕捉主升浪
+                        wide_stop = self._trend_highest * 0.94
+                        self._dynamic_exit_price = max(self._dynamic_exit_price, wide_stop)
+                    else:
+                        # 利润虽大但趋势转弱：收紧至 3% 锁定收益
+                        medium_stop = self._trend_highest * 0.97
+                        self._dynamic_exit_price = max(self._dynamic_exit_price, medium_stop)
+                
+                # 策略 C: 大级别趋势彻底反转 (SMA60 < SMA120)
+                trend_dead = self.sma60[0] < self.sma120[0]
+                
+                if current_price < self._dynamic_exit_price or trend_dead:
+                    sell_signal = True
+                    sell_size = self.position.size
+                    action_type = "保本/跟踪止盈" if profit_pct > 0 else "止损"
+                    sell_reason = f"趋势单{action_type} (当前价{current_price:.3f} < 触发价{self._dynamic_exit_price:.3f}), 收益: {profit_pct*100:.1f}%"
 
             # 退出检票 C：左侧网格止盈 (非趋势单，且未开启跟踪止盈时，触及布林上轨)
             elif not self._is_trend_position and self._trailing_stop_price is None:
@@ -232,8 +283,8 @@ class ETFGridMeanReversionStrategy(bt.Strategy):
             )
             if in_uptrend:
                 cash = self.broker.getcash()
-                # 趋势追入仅用 15% 仓位，较保守
-                target_cash_use = min(self.broker.getvalue() * 0.15, cash * 0.95)
+                # 趋势追入仓位增加到 50%，进一步提升牛市资金利用率
+                target_cash_use = min(self.broker.getvalue() * 0.50, cash * 0.95)
                 qty = int(target_cash_use / current_price / 100) * 100
                 if qty > 0:
                     buy_reason = f"趋势追入: 均线多头排列, RSI={self.rsi[0]:.1f}, 价格在中轨上方"
@@ -242,9 +293,12 @@ class ETFGridMeanReversionStrategy(bt.Strategy):
                     self.order.reason = buy_reason
                     self._trend_breakout_used = True  # 本轮牛市只追一次
                     self._is_trend_position = True    # 标记为趋势单
+                    self._trend_highest = current_price # 初始化最高价记录
 
     def _on_full_exit(self):
         """Called when position is fully closed to reset breakout flag."""
         self._trend_breakout_used = False
         self._trailing_stop_price = None # 复位跟踪止盈
+        self._dynamic_exit_price = None  # 复位趋势动态止损
+        self._trend_highest = None
         self._last_exit_price = self.dataclose[0]

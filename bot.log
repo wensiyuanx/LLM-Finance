@@ -102,3 +102,332 @@
 2026-03-21 09:31:14,755 [INFO    ] scheduler — A-Share market is CLOSED. Skipping initial analysis.
 2026-03-21 09:31:14,755 [INFO    ] scheduler — HK-Share market is CLOSED. Skipping initial analysis.
 2026-03-21 09:31:14,965 [INFO    ] scheduler — [API Server] Starting FastAPI on 0.0.0.0:8069
+2026-03-21 14:47:09,960 [INFO    ] scheduler — ============================================================
+2026-03-21 14:47:09,961 [INFO    ] scheduler — Starting enhanced scheduler with real-time monitoring and batch writing...
+2026-03-21 14:47:09,963 [INFO    ] scheduler — Batch write interval: 5.0s
+2026-03-21 14:47:09,963 [INFO    ] scheduler — ============================================================
+2026-03-21 14:47:09,963 [INFO    ] scheduler — [RealTime] Initializing Real-Time Market Monitor Thread with batch writing...
+2026-03-21 14:47:09,963 [INFO    ] scheduler — [RealTime] Real-time monitor thread started successfully.
+2026-03-21 14:47:09,964 [INFO    ] scheduler — ============================================================
+2026-03-21 14:47:09,965 [INFO    ] scheduler — Scheduler configured:
+2026-03-21 14:47:09,966 [INFO    ] scheduler —   - Real-time monitoring: ACTIVE (background thread)
+2026-03-21 14:47:09,966 [INFO    ] scheduler —   - API Server: ACTIVE (127.0.0.1:8069 background thread)
+2026-03-21 14:47:09,966 [INFO    ] scheduler —   - A-Share analysis: 11:30, 14:50
+2026-03-21 14:47:09,966 [INFO    ] scheduler —   - HK-Share analysis: 11:30, 14:00, 15:50
+2026-03-21 14:47:09,966 [INFO    ] scheduler —   - T+1 rollover: 09:00
+2026-03-21 14:47:09,966 [INFO    ] scheduler — ============================================================
+2026-03-21 14:47:09,967 [INFO    ] scheduler — Press Ctrl+C to stop.
+2026-03-21 14:47:09,967 [INFO    ] scheduler — Checking if market is open for initial startup analysis...
+2026-03-21 14:47:10,469 [INFO    ] scheduler — [RealTime] Connected to FutuOpenD Quote Context for real-time monitoring.
+2026-03-21 14:47:13,665 [INFO    ] scheduler — A-Share market is CLOSED. Skipping initial analysis.
+2026-03-21 14:47:13,665 [INFO    ] scheduler — HK-Share market is CLOSED. Skipping initial analysis.
+2026-03-21 14:47:14,127 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 14:47:14,304 [INFO    ] scheduler — [Batch Writer] Started with interval: 5.0s
+2026-03-21 14:47:14,304 [INFO    ] scheduler — [Batch Writer] Background thread started
+2026-03-21 14:47:14,304 [INFO    ] scheduler — [RealTime] Subscribing to real-time quotes for: ['SZ.159915', 'HK.00700', 'SH.510300', 'HK.07226', 'HK.03033', 'SH.510050', 'SH.600519', 'SH.588080', 'HK.01810', 'SZ.002594', 'SZ.000001', 'SZ.000002', 'SZ.000063', 'SZ.000333', 'SZ.000651', 'SZ.000725', 'SZ.000858', 'SZ.002415', 'SZ.300059', 'SZ.300750', 'SH.600000', 'SH.600036', 'SH.600900', 'SH.601318', 'SH.601857', 'SH.601888', 'SH.688981', 'SH.510500', 'SZ.159919', 'SH.512880', 'SH.515050', 'SH.515880', 'SH.512660', 'SH.516160', 'HK.00941', 'HK.01299', 'HK.02318', 'HK.03888', 'HK.06618', 'HK.06988', 'HK.09988', 'HK.01024', 'HK.01093', 'HK.01109', 'HK.01138', 'HK.01157', 'HK.01171', 'HK.01211', 'HK.02020', 'HK.02313', 'HK.02382', 'HK.02400', 'HK.02600', 'HK.02800', 'HK.02823', 'HK.02828', 'HK.03088']
+2026-03-21 14:47:14,326 [INFO    ] scheduler — [API Server] Starting FastAPI on 0.0.0.0:8069
+2026-03-21 14:47:22,485 [INFO    ] scheduler — [Batch Writer] Flushed 57 updates in 3.177s
+2026-03-21 14:48:14,914 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 14:48:15,013 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 14:49:15,423 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 14:49:15,522 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 14:50:13,676 [INFO    ] scheduler — === A-Share Market Job Started ===
+2026-03-21 14:50:14,724 [INFO    ] config — Configuration loaded from /Users/wensiyuan/mycode/LLM-Finance/config.yaml
+2026-03-21 14:50:15,261 [INFO    ] config — Configuration refreshed with 0 database overrides.
+2026-03-21 14:50:15,366 [INFO    ] main — Trading bot started | filter: ['A_SHARE'] (Config Hot-Reloaded).
+2026-03-21 14:50:15,473 [ERROR   ] scheduler — A-Share job failed: name 'AsyncSessionLocal' is not defined
+Traceback (most recent call last):
+  File "/Users/wensiyuan/mycode/LLM-Finance/run_scheduler.py", line 52, in job_a_share
+    asyncio.run(run_trading_bot(market_filter=[MarketType.A_SHARE]))
+  File "/opt/homebrew/Cellar/python@3.12/3.12.12/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.12/3.12.12/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.12/3.12.12/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/Users/wensiyuan/mycode/LLM-Finance/main.py", line 305, in run_trading_bot
+    async with AsyncSessionLocal() as db_session:
+               ^^^^^^^^^^^^^^^^^
+NameError: name 'AsyncSessionLocal' is not defined. Did you mean: 'SessionLocal'?
+2026-03-21 14:50:15,480 [INFO    ] scheduler — === A-Share Market Job Finished ===
+2026-03-21 14:50:15,981 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 14:50:16,086 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 14:51:16,515 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 14:51:16,617 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 14:52:17,043 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 14:52:17,145 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 14:53:17,547 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 14:53:17,644 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 14:54:18,053 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 14:54:18,152 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 14:55:18,563 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 14:55:18,664 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 14:56:19,094 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 14:56:19,197 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 14:57:19,622 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 14:57:19,727 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 14:58:20,136 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 14:58:20,236 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 14:59:20,648 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 14:59:20,747 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:00:21,160 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:00:21,258 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:01:21,673 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:01:21,774 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:02:22,181 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:02:22,281 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:03:22,695 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:03:22,795 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:04:23,216 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:04:23,318 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:05:23,784 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:05:23,888 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:06:24,293 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:06:24,392 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:07:24,793 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:07:24,889 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:08:25,291 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:08:25,390 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:09:25,821 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:09:25,919 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:10:26,329 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:10:26,429 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:11:26,831 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:11:26,929 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:12:27,349 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:12:27,451 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:13:27,864 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:13:27,963 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:14:28,364 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:14:28,460 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:15:28,891 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:15:28,995 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:16:29,392 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:16:29,489 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:17:29,923 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:17:30,029 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:18:30,430 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:18:30,529 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:19:30,947 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:19:31,049 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:20:31,447 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:20:31,544 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:21:31,948 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:21:32,048 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:22:32,453 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:22:32,549 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:23:32,981 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:23:33,086 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:24:33,502 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:24:33,601 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:25:34,028 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:25:34,132 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:26:34,546 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:26:34,646 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:27:35,056 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:27:35,158 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:28:35,563 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:28:35,661 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:29:36,069 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:29:36,167 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:30:36,596 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:30:36,700 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:31:37,111 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:31:37,211 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:32:37,637 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:32:37,740 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:33:38,140 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:33:38,238 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:34:38,650 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:34:38,750 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:35:39,180 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:35:39,285 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:36:39,709 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:36:39,809 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:37:40,222 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:37:40,321 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:38:40,728 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:38:40,827 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:39:41,242 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:39:41,343 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:40:41,749 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:40:41,847 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:41:42,254 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:41:42,353 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:42:42,761 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:42:42,858 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:43:43,282 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:43:43,385 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:44:43,807 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:44:43,910 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:45:44,320 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:45:44,419 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:46:44,835 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:46:44,937 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:47:45,371 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:47:45,476 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:48:45,911 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:48:46,015 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:49:46,432 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:49:46,534 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:50:15,707 [INFO    ] scheduler — === HK-Share Market Job Started ===
+2026-03-21 15:50:16,468 [INFO    ] config — Configuration loaded from /Users/wensiyuan/mycode/LLM-Finance/config.yaml
+2026-03-21 15:50:16,809 [INFO    ] config — Configuration refreshed with 0 database overrides.
+2026-03-21 15:50:16,910 [INFO    ] main — Trading bot started | filter: ['HK_SHARE'] (Config Hot-Reloaded).
+2026-03-21 15:50:17,032 [ERROR   ] scheduler — HK-Share job failed: name 'AsyncSessionLocal' is not defined
+Traceback (most recent call last):
+  File "/Users/wensiyuan/mycode/LLM-Finance/run_scheduler.py", line 61, in job_hk_share
+    asyncio.run(run_trading_bot(market_filter=[MarketType.HK_SHARE]))
+  File "/opt/homebrew/Cellar/python@3.12/3.12.12/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.12/3.12.12/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.12/3.12.12/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/Users/wensiyuan/mycode/LLM-Finance/main.py", line 305, in run_trading_bot
+    async with AsyncSessionLocal() as db_session:
+               ^^^^^^^^^^^^^^^^^
+NameError: name 'AsyncSessionLocal' is not defined. Did you mean: 'SessionLocal'?
+2026-03-21 15:50:17,040 [INFO    ] scheduler — === HK-Share Market Job Finished ===
+2026-03-21 15:50:46,951 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:50:47,049 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:51:47,453 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:51:47,550 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:52:47,975 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:52:48,075 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:53:48,491 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:53:48,590 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:54:48,995 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:54:49,093 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:55:49,505 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:55:49,603 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:56:50,021 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:56:50,123 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:57:50,522 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:57:50,618 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:58:51,014 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:58:51,111 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 15:59:51,511 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 15:59:51,608 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:00:52,016 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:00:52,113 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:01:52,530 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:01:52,633 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:02:53,040 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:02:53,139 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:03:53,572 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:03:53,678 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:04:54,095 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:04:54,196 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:05:54,598 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:05:54,697 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:06:55,099 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:06:55,195 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:07:55,592 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:07:55,691 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:08:56,093 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:08:56,191 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:09:56,594 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:09:56,691 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:10:57,095 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:10:57,192 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:11:57,593 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:11:57,700 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:12:58,110 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:12:58,208 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:13:58,638 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:13:58,740 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:14:59,157 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:14:59,256 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:15:59,699 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:15:59,802 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:17:00,209 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:17:00,307 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:18:00,712 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:18:00,810 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:19:01,243 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:19:01,342 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:20:01,765 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:20:01,868 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:21:02,303 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:21:02,407 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:22:02,811 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:22:02,908 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:23:03,332 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:23:03,439 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:24:03,874 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:24:03,978 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:25:04,390 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:25:04,490 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:26:04,890 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:26:04,987 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:27:05,402 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:27:05,499 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:28:05,904 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:28:06,001 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:29:06,422 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:29:06,525 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:30:06,930 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:30:07,029 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:31:07,468 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:31:07,581 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:32:07,993 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:32:08,093 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:33:08,504 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:33:08,609 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:34:09,016 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:34:09,115 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:35:09,537 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:35:09,639 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:36:10,051 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:36:10,152 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:37:10,578 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:37:10,681 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:38:11,081 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:38:11,177 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:39:11,570 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:39:11,665 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:40:12,075 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:40:12,174 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:41:12,592 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:41:12,693 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:42:13,116 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:42:13,217 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:43:13,622 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:43:13,719 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:44:14,125 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:44:14,223 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:45:14,645 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:45:14,752 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:46:15,166 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:46:15,267 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:47:15,677 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:47:15,776 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:48:16,178 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:48:16,279 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:49:16,687 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:49:16,784 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:50:17,221 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:50:17,322 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:51:17,750 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:51:17,854 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:52:18,322 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:52:18,421 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:53:18,848 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:53:18,952 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:54:19,362 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:54:19,462 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:55:19,887 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:55:19,991 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:56:20,390 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:56:20,487 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:57:20,924 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:57:21,027 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-21 16:58:21,444 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 1 for ATR stop-loss. Cache size: 57
+2026-03-21 16:58:21,545 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57

@@ -43,11 +43,13 @@ logger = logging.getLogger("scheduler")
 # Job definitions
 # ---------------------------------------------------------------------------
 
+import asyncio
+
 def job_a_share():
     """Runs intraday and pre-close for A-Share."""
     logger.info("=== A-Share Market Job Started ===")
     try:
-        run_trading_bot(market_filter=[MarketType.A_SHARE])
+        asyncio.run(run_trading_bot(market_filter=[MarketType.A_SHARE]))
     except Exception as e:
         logger.error("A-Share job failed: %s", e, exc_info=True)
     logger.info("=== A-Share Market Job Finished ===")
@@ -56,7 +58,7 @@ def job_hk_share():
     """Runs intraday and pre-close for HK-Share."""
     logger.info("=== HK-Share Market Job Started ===")
     try:
-        run_trading_bot(market_filter=[MarketType.HK_SHARE])
+        asyncio.run(run_trading_bot(market_filter=[MarketType.HK_SHARE]))
     except Exception as e:
         logger.error("HK-Share job failed: %s", e, exc_info=True)
     logger.info("=== HK-Share Market Job Finished ===")
@@ -65,7 +67,7 @@ def job_rollover_t1():
     """Converts T+1 locked shares to sellable. Runs once per day."""
     logger.info("=== T+1 Rollover Job Started ===")
     try:
-        rollover_t1_holdings_task()
+        asyncio.run(rollover_t1_holdings_task())
         logger.info("Successfully rolled over A-Share holdings.")
     except Exception as e:
         logger.error("Rollover failed: %s", e, exc_info=True)

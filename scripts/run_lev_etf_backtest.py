@@ -62,8 +62,13 @@ def run_backtest(code, cash=100000.0, start_date=None):
     from scripts.backtest.lev_etf_strategy import LeveragedETFMomentumStrategy
     
     cerebro = bt.Cerebro()
-    curr_market = 'HK' if code.startswith('HK.') else 'A'
-    cerebro.addstrategy(LeveragedETFMomentumStrategy, market=curr_market)
+    curr_market = 'HK' if 'HK' in code.upper() else 'SZ'
+    
+    from_date = None
+    if start_date:
+        from_date = datetime.strptime(start_date, "%Y-%m-%d")
+        
+    cerebro.addstrategy(LeveragedETFMomentumStrategy, market=curr_market, start_date=from_date)
     
     logger.info(f"Loading data for {code} from database...")
     
@@ -100,8 +105,8 @@ def run_backtest(code, cash=100000.0, start_date=None):
         cerebro.adddata(data1)
     
     cerebro.broker.setcash(cash)
-    cerebro.broker.setcommission(commission=0.001)
-    cerebro.broker.set_slippage_perc(perc=0.002) # 0.2% slippage for leveraged ETFs is critical
+    cerebro.broker.setcommission(commission=0.0005)  # Reduced from 0.1% to 0.05%
+    cerebro.broker.set_slippage_perc(perc=0.001)  # Reduced from 0.2% to 0.1%
     
     initial_value = cerebro.broker.getvalue()
     logger.info(f'Starting Portfolio Value: {initial_value:.2f}')
@@ -205,7 +210,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Leveraged ETF backtest.")
     parser.add_argument("code", type=str, help="Stock code (e.g., HK.07226)")
     parser.add_argument("--days", type=int, default=550)
-    parser.add_argument("--start_date", type=str, default="2025-01-01")
+    parser.add_argument("--start_date", type=str, default=None)
     parser.add_argument("--cash", type=float, default=100000.0)
     
     args = parser.parse_args()
