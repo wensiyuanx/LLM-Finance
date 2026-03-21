@@ -10,15 +10,15 @@ class LeveragedETFMomentumStrategy(bt.Strategy):
     params = (
         ('sma_fast', 5),
         ('sma_slow', 20),
-        ('adx_min', 36),        # Balanced threshold - not too strict, not too loose
+        ('adx_min', 36),        # Balanced threshold
         ('atr_period', 14),
         ('start_date', None),
         ('market', 'HK'),
         ('stop_atr_mult', 5.8), # Balanced stop distance
-        ('profit_target', 0.22), # Higher target to compensate for fewer trades
-        ('max_position_size', 0.80), # Moderate position size
+        ('profit_target', 0.22), # Good risk/reward target
+        ('max_position_size', 0.85), # Slightly larger position
         ('min_trades_bars', 12), # Prevent overtrading
-        ('trailing_stop_activation', 0.10), # Activate trailing stop at 10% profit
+        ('trailing_stop_activation', 0.10), # Activate trailing at 10% profit
         ('breakeven_profit', 0.06), # Move to breakeven at 6% profit
     )
 
@@ -134,11 +134,11 @@ class LeveragedETFMomentumStrategy(bt.Strategy):
                 sell_signal = True
                 reason = "Dynamic Stop"
             # Extreme overbought condition with profit - very conservative
-            elif not sell_signal and self.rsi[0] > 92 and profit_pct > 0.10:
+            elif not sell_signal and self.rsi[0] > 93 and profit_pct > 0.12:
                 sell_signal = True
                 reason = "Extreme Overbought"
-            # Momentum reversal - only exit if both MACD crosses below AND RSI drops below 42 AND significant loss
-            elif not sell_signal and self.macd.macd[0] < self.macd.signal[0] and self.rsi[0] < 42 and profit_pct < -0.06:
+            # Momentum reversal - only exit if both MACD crosses below AND RSI drops below 40 AND significant loss
+            elif not sell_signal and self.macd.macd[0] < self.macd.signal[0] and self.rsi[0] < 40 and profit_pct < -0.08:
                 sell_signal = True
                 reason = "Momentum Reversal"
 

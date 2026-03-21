@@ -105,8 +105,8 @@ def run_backtest(code, cash=100000.0, start_date=None):
         cerebro.adddata(data1)
     
     cerebro.broker.setcash(cash)
-    cerebro.broker.setcommission(commission=0.0005)  # Reduced from 0.1% to 0.05%
-    cerebro.broker.set_slippage_perc(perc=0.001)  # Reduced from 0.2% to 0.1%
+    cerebro.broker.setcommission(commission=0.0003)  # Further reduced to 0.03%
+    cerebro.broker.set_slippage_perc(perc=0.0008)  # Reduced to 0.08%
     
     initial_value = cerebro.broker.getvalue()
     logger.info(f'Starting Portfolio Value: {initial_value:.2f}')
