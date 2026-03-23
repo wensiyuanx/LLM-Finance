@@ -139,26 +139,21 @@ def generate_kline_chart(df: pd.DataFrame, code: str, output_dir: str = "output/
         rsi_ax.fill_between(range(len(plot_df)), 30, 70, color='#2a2e39', alpha=0.3, zorder=0)
 
         # 2. Add Super Title (Headed Outside) - Use platform-compatible font with symbol support
+        import matplotlib.font_manager as fm
+        available_fonts = set(f.name for f in fm.fontManager.ttflist)
+        
         if platform.system() == 'Darwin':
-            # Common macOS fonts with good symbol support
-            for f in ['Arial Unicode MS', 'PingFang HK', 'Heiti SC', 'STIXGeneral']:
-                try:
-                    plt.rcParams['font.family'] = f
-                    break
-                except:
-                    continue
+            target_fonts = ['Arial Unicode MS', 'PingFang HK', 'Heiti SC', 'Helvetica']
         else:
-            # Linux (CentOS) / Windows
-            # STIXGeneral is often bundled with matplotlib and supports symbols
-            # DejaVu Sans is common on Linux and usually supports symbols
-            for f in ['STIXGeneral', 'DejaVu Sans', 'Liberation Sans', 'Arial', 'sans-serif']:
-                try:
-                    plt.rcParams['font.family'] = f
-                    break
-                except:
-                    continue
+            target_fonts = ['DejaVu Sans', 'Liberation Sans', 'Arial', 'sans-serif']
             
-        font_name = plt.rcParams['font.family']
+        font_name = 'sans-serif'
+        for f in target_fonts:
+            if f in available_fonts:
+                font_name = f
+                break
+                
+        plt.rcParams['font.family'] = font_name
         fig.suptitle(title, color=title_color, fontsize=20, weight='bold', y=0.97, fontname=font_name)
         
         # 3. Add Subtle Branded Watermark

@@ -3,6 +3,20 @@ import uuid
 import time
 import traceback
 import threading
+
+# Fix for FuTu API logger path permission issues on macOS / Linux
+if 'HOME' not in os.environ:
+    os.environ['HOME'] = os.getcwd()
+try:
+    futu_log_dir = os.path.join(os.environ['HOME'], ".com.futunn.FutuOpenD/Log")
+    os.makedirs(futu_log_dir, exist_ok=True)
+    test_log_path = os.path.join(futu_log_dir, ".perm_test")
+    with open(test_log_path, "w", encoding="utf-8") as f:
+        f.write("ok")
+    os.remove(test_log_path)
+except Exception:
+    os.environ['HOME'] = os.getcwd()
+
 from typing import Optional, Dict
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -81,13 +95,26 @@ def run_backtest_job(job_id: str, req: BacktestRequest):
             std_backtest(code, req.cash, start_date=req.start_date)
             local_plot_file = f"backtest_result_{code}.png"
 
+        # Note: The underlying backtest functions still hardcode the output filename.
+        # To avoid concurrent overwrites while keeping the refactoring minimal, 
+        # we immediately rename the generated plot to a unique job-specific file.
+        unique_plot_file = f"{local_plot_file.replace('.png', '')}_{job_id}.png"
+        
         if not os.path.exists(local_plot_file):
             raise RuntimeError(f"Plot file was not generated: {local_plot_file}")
+            
+        os.rename(local_plot_file, unique_plot_file)
 
         # Upload to TOS
         file_id = str(uuid.uuid4())[:8]
         object_key = f"{TOS_PATH}/{code}_{int(time.time())}_{file_id}.png"
-        oss_url = upload_to_tos(local_plot_file, object_key)
+        oss_url = upload_to_tos(unique_plot_file, object_key)
+        
+        # Clean up the unique local file after upload
+        try:
+            os.remove(unique_plot_file)
+        except OSError:
+            pass
         if not oss_url:
             raise RuntimeError("Failed to upload backtest plot to TOS")
 

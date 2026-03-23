@@ -6,6 +6,19 @@ import pandas as pd
 import logging
 from datetime import datetime, timedelta
 
+# Fix for FuTu API logger path permission issues on macOS / Linux
+if 'HOME' not in os.environ:
+    os.environ['HOME'] = os.getcwd()
+try:
+    futu_log_dir = os.path.join(os.environ['HOME'], ".com.futunn.FutuOpenD/Log")
+    os.makedirs(futu_log_dir, exist_ok=True)
+    test_log_path = os.path.join(futu_log_dir, ".perm_test")
+    with open(test_log_path, "w", encoding="utf-8") as f:
+        f.write("ok")
+    os.remove(test_log_path)
+except Exception:
+    os.environ['HOME'] = os.getcwd()
+
 # Add project root to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

@@ -47,13 +47,14 @@ def diagnose_asset(code):
         print(f"Volume: {latest['volume']:.0f} | Vol SMA 5: {latest.get('VOL_SMA_5', 0):.0f}")
         
         # Run signal logic
-        action, reason = generate_signals(df, current_position=0, avg_cost=0, code=code)
+        action, reason, score, is_trend_entry = generate_signals(df, current_position=0, avg_cost=0, code=code)
         print(f"\nFinal Action: {action.name}")
         print(f"Reason: {reason}")
+        print(f"Score: {score:.1f} | Is Trend: {is_trend_entry}")
         
         # Internal check of signal list logic
         buy_signals = []
-        in_downtrend = latest['close'] < latest['SMA_200']
+        in_downtrend = latest['close'] < latest.get('SMA_200', latest.get('SMA_60', 0))
         
         # 1. MA Crossover
         if prev['SMA_5'] <= prev['SMA_20'] and latest['SMA_5'] > latest['SMA_20']:

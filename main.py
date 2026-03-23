@@ -2,7 +2,7 @@ import os
 import logging
 import warnings
 from datetime import datetime, timedelta
-from database.db import SessionLocal, init_db
+from database.db import SessionLocal, AsyncSessionLocal, init_db
 
 # Suppress matplotlib font warnings
 warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib.font_manager')
@@ -18,8 +18,17 @@ from typing import Dict, List
 from config import get_config, refresh_config
 from sqlalchemy import select, delete, func
 
-# Fix for FuTu API requiring HOME environment variable
+# Fix for FuTu API logger path permission issues on macOS / Linux
 if 'HOME' not in os.environ:
+    os.environ['HOME'] = os.getcwd()
+try:
+    futu_log_dir = os.path.join(os.environ['HOME'], ".com.futunn.FutuOpenD/Log")
+    os.makedirs(futu_log_dir, exist_ok=True)
+    test_log_path = os.path.join(futu_log_dir, ".perm_test")
+    with open(test_log_path, "w", encoding="utf-8") as f:
+        f.write("ok")
+    os.remove(test_log_path)
+except Exception:
     os.environ['HOME'] = os.getcwd()
 
 logger = logging.getLogger(__name__)
@@ -117,10 +126,10 @@ async def save_klines_to_db(db, user_id: int, code: str, df: pd.DataFrame, timef
         logger.error("Error during %s K-line pruning for %s: %s", timeframe, code, e)
 
 
-async def save_signal_to_db(db, user_id: int, code: str, action, reason: str, close_price: float):
+async def save_signal_to_db(db, user_id: int, code: str, action, reason: str, close_price: float, current_price: float = None):
     db.add(SignalRecord(
         user_id=user_id, code=code,
-        action=action, reason=reason, close_price=close_price
+        action=action, reason=reason, close_price=close_price, current_price=current_price
     ))
     await db.commit()
 
@@ -158,6 +167,39 @@ async def get_holding(db, user_id: int, code: str, market_type) -> Holding:
         await db.commit()
         await db.refresh(holding)
     return holding
+
+
+async def load_klines_from_db(db, user_id: int, code: str, timeframe: str, limit: int = 300) -> pd.DataFrame:
+    """Load latest K-line data from DB for indicator calculation."""
+    stmt = select(KLineData).filter(
+        KLineData.user_id == user_id,
+        KLineData.code == code,
+        KLineData.timeframe == timeframe
+    ).order_by(KLineData.time_key.desc()).limit(limit)
+    
+    res = await db.execute(stmt)
+    records = res.scalars().all()
+    
+    if not records:
+        return pd.DataFrame()
+        
+    # Reverse to chronological order
+    records = list(reversed(records))
+    
+    data = []
+    for r in records:
+        data.append({
+            'time_key': r.time_key,
+            'open': r.open_price,
+            'high': r.high_price,
+            'low': r.low_price,
+            'close': r.close_price,
+            'volume': r.volume,
+            'turnover': r.turnover
+        })
+    df = pd.DataFrame(data)
+    df.set_index('time_key', inplace=True)
+    return df
 
 
 async def update_holding_buy(db, holding: Holding, qty: float, price: float, is_t1: bool = True, is_trend: bool = False):
@@ -270,11 +312,6 @@ async def fetch_and_compute(futu, asset, start_date_fetch, end_date):
         if df_60m is not None:
             df_60m = format_futu_df(df_60m)
             
-        if df_day is not None and not df_day.empty and df_60m is not None and not df_60m.empty:
-            # Pre-calculate indicators
-            df_60m = calculate_indicators(df_60m)
-            df_day = calculate_indicators(df_day)
-    
     return asset.code, df_day, df_60m
 
 async def rollover_t1_holdings_task():
@@ -287,7 +324,7 @@ async def rollover_t1_holdings_task():
             await session.close()
 
 
-async def run_trading_bot(market_filter=None):
+async def run_trading_bot(market_filter=None, force=False):
     """
     Main asynchronous trading bot loop.
     """
@@ -396,22 +433,33 @@ async def run_trading_bot(market_filter=None):
                     klines_day = data_dict.get('1d')
                     klines_60m = data_dict.get('60m')
 
-                    if klines_day is None or klines_day.empty or klines_60m is None or klines_60m.empty:
-                        logger.warning(f"No complete K-line data fetched for {code}.")
-                        continue
+                    # Save data to DB (Async) - only if we fetched new data
+                    if klines_day is not None and not klines_day.empty:
+                        await save_klines_to_db(db_session, user_id, code, klines_day, timeframe='1d')
+                    if klines_60m is not None and not klines_60m.empty:
+                        await save_klines_to_db(db_session, user_id, code, klines_60m, timeframe='60m')
+
+                    # Load full window from DB to calculate indicators properly
+                    from strategy.indicators import calculate_indicators
+                    full_klines_day = await load_klines_from_db(db_session, user_id, code, '1d', limit=250)
+                    full_klines_60m = await load_klines_from_db(db_session, user_id, code, '60m', limit=300)
                     
-                    # Save data to DB (Async)
-                    await save_klines_to_db(db_session, user_id, code, klines_day, timeframe='1d')
-                    await save_klines_to_db(db_session, user_id, code, klines_60m, timeframe='60m')
+                    if full_klines_day.empty or full_klines_60m.empty:
+                        logger.warning(f"No sufficient historical data in DB for {code}.")
+                        continue
+                        
+                    # Calculate indicators
+                    klines_60m_with_ind = calculate_indicators(full_klines_60m)
+                    klines_day_with_ind = calculate_indicators(full_klines_day)
 
                     try:
-                        await asyncio.to_thread(generate_kline_chart, klines_60m.copy(), code)
+                        await asyncio.to_thread(generate_kline_chart, klines_60m_with_ind.copy(), code)
                     except Exception as viz_e:
                         logger.error(f"Failed to generate chart for {code}: {viz_e}")
 
                     # Load persistent holding
                     holding = await get_holding(db_session, user_id, code, market_type)
-                    current_price = float(klines_60m['close'].iloc[-1])
+                    current_price = float(klines_60m_with_ind['close'].iloc[-1])
                     
                     if holding.quantity > 0:
                         if holding.highest_price == 0:
@@ -429,15 +477,23 @@ async def run_trading_bot(market_filter=None):
                         is_pre_close = True
 
                     action, reason, score, is_trend_entry = StrategyRouter.get_strategy_signals(
-                        asset, klines_60m, klines_day, holding, is_pre_close
+                        asset, klines_60m_with_ind, klines_day_with_ind, holding, is_pre_close
                     )
-                    latest_close = float(klines_60m['close'].iloc[-1])
+                    latest_close = float(klines_60m_with_ind['close'].iloc[-1])
+                    current_asset_price = None
+                    try:
+                        if getattr(asset, "last_price", None) is not None:
+                            current_asset_price = float(asset.last_price)
+                    except Exception:
+                        current_asset_price = None
+                    if current_asset_price is None:
+                        current_asset_price = latest_close
                     logger.info("[%s] Signal: %s — %s (Sellable: %s, Score: %.1f)", code, action.name, reason, holding.sellable_quantity, score)
-                    await save_signal_to_db(db_session, user_id, code, action, reason, latest_close)
+                    await save_signal_to_db(db_session, user_id, code, action, reason, latest_close, current_price=current_asset_price)
                     
                     asset_stats[code] = {'holding': holding}
                     
-                    if market_type == MarketType.A_SHARE and action == TradeAction.BUY and now_time.hour < 14:
+                    if market_type == MarketType.A_SHARE and action == TradeAction.BUY and now_time.hour < 14 and not force:
                         logger.warning("[%s] Suppressed BUY signal due to A-Share morning T+1 risk.", code)
                         continue
 
@@ -464,7 +520,7 @@ async def run_trading_bot(market_filter=None):
                     holding = asset_stats[code]['holding']
                     is_t1 = (market_type == MarketType.A_SHARE)
                     
-                    if not is_market_open(market_type):
+                    if not is_market_open(market_type) and not force:
                         logger.warning("[%s] Market is CLOSED. Skipping Execution.", code)
                         continue
 

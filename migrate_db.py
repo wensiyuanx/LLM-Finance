@@ -26,6 +26,15 @@ def run_migration():
                 conn.commit()
             else:
                 logger.info("Column 'is_leveraged' already exists.")
+
+            result = conn.execute(text("SHOW COLUMNS FROM signal_records LIKE 'current_price'"))
+            if not result.fetchone():
+                logger.info("Adding 'current_price' column to signal_records table...")
+                conn.execute(text("ALTER TABLE signal_records ADD COLUMN current_price FLOAT NULL"))
+                logger.info("Column added successfully.")
+                conn.commit()
+            else:
+                logger.info("Column 'current_price' already exists.")
     except Exception as e:
         logger.error(f"Migration failed: {e}")
 

@@ -74,6 +74,7 @@ class SignalRecord(Base):
     action = Column(Enum(TradeAction), nullable=False) # The analysis result (BUY, SELL, HOLD)
     reason = Column(String(500), nullable=True) # Full reason text
     close_price = Column(Float, nullable=True) # The price it was analyzed on
+    current_price = Column(Float, nullable=True) # The current asset price when signal is generated
     created_at = Column(DateTime, default=get_beijing_time) # Time analysis fired
 
 class UserWallet(Base):

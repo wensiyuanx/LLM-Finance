@@ -27,11 +27,12 @@ engine = create_engine(
 )
 
 # Async Engine
+# Using NullPool for async_engine to avoid "attached to a different loop" errors
+# when asyncio.run() creates new event loops in different threads/tasks.
 async_engine = create_async_engine(
     ASYNC_DATABASE_URL,
     echo=False,
-    pool_pre_ping=True,
-    pool_recycle=3600,
+    poolclass=NullPool,
 )
 
 # Session Local classes

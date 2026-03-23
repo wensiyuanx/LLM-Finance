@@ -12,8 +12,17 @@ import time
 from datetime import datetime
 from collections import defaultdict
 
-# Fix for FuTu API requiring HOME environment variable
+# Fix for FuTu API logger path permission issues on macOS
 if 'HOME' not in os.environ:
+    os.environ['HOME'] = os.getcwd()
+try:
+    futu_log_dir = os.path.join(os.environ['HOME'], ".com.futunn.FutuOpenD/Log")
+    os.makedirs(futu_log_dir, exist_ok=True)
+    test_log_path = os.path.join(futu_log_dir, ".perm_test")
+    with open(test_log_path, "w", encoding="utf-8") as f:
+        f.write("ok")
+    os.remove(test_log_path)
+except Exception:
     os.environ['HOME'] = os.getcwd()
 
 import schedule
@@ -22,7 +31,7 @@ from futu import *
 from database.db import init_db, SessionLocal
 from database.models import MarketType, Holding, AssetMonitor
 from main import run_trading_bot, rollover_t1_holdings_task
-from engine.time_utils import is_market_open
+from engine.time_utils import is_market_open, is_holiday
 from data.futu_client import FUTU_HOST, FUTU_PORT
 
 # ---------------------------------------------------------------------------
@@ -44,33 +53,60 @@ logger = logging.getLogger("scheduler")
 # ---------------------------------------------------------------------------
 
 import asyncio
+import time
+from datetime import datetime
 
-def job_a_share():
+def job_a_share(force=False):
     """Runs intraday and pre-close for A-Share."""
+    start_time = time.time()
     logger.info("=== A-Share Market Job Started ===")
     try:
-        asyncio.run(run_trading_bot(market_filter=[MarketType.A_SHARE]))
+        # Skip if it's a holiday (unless forced)
+        if not force and is_holiday(MarketType.A_SHARE):
+            logger.info("A-Share market is on holiday. Skipping analysis.")
+            return
+
+        asyncio.run(run_trading_bot(market_filter=[MarketType.A_SHARE], force=force))
     except Exception as e:
         logger.error("A-Share job failed: %s", e, exc_info=True)
-    logger.info("=== A-Share Market Job Finished ===")
+    finally:
+        elapsed = time.time() - start_time
+        logger.info("=== A-Share Market Job Finished (Elapsed: %.1fs) ===", elapsed)
 
-def job_hk_share():
+def job_hk_share(force=False):
     """Runs intraday and pre-close for HK-Share."""
+    start_time = time.time()
     logger.info("=== HK-Share Market Job Started ===")
     try:
-        asyncio.run(run_trading_bot(market_filter=[MarketType.HK_SHARE]))
+        # Skip if it's a holiday (unless forced)
+        if not force and is_holiday(MarketType.HK_SHARE):
+            logger.info("HK-Share market is on holiday. Skipping analysis.")
+            return
+
+        asyncio.run(run_trading_bot(market_filter=[MarketType.HK_SHARE], force=force))
     except Exception as e:
         logger.error("HK-Share job failed: %s", e, exc_info=True)
-    logger.info("=== HK-Share Market Job Finished ===")
+    finally:
+        elapsed = time.time() - start_time
+        logger.info("=== HK-Share Market Job Finished (Elapsed: %.1fs) ===", elapsed)
 
 def job_rollover_t1():
     """Converts T+1 locked shares to sellable. Runs once per day."""
+    start_time = time.time()
     logger.info("=== T+1 Rollover Job Started ===")
     try:
+        # Skip if it's a holiday
+        if is_holiday(MarketType.A_SHARE):
+            logger.info("A-Share market is on holiday. Skipping T+1 rollover.")
+            return
+
         asyncio.run(rollover_t1_holdings_task())
         logger.info("Successfully rolled over A-Share holdings.")
     except Exception as e:
         logger.error("Rollover failed: %s", e, exc_info=True)
+    finally:
+        elapsed = time.time() - start_time
+        logger.info("=== T+1 Rollover Job Finished (Elapsed: %.1fs) ===", elapsed)
 
 
 # ---------------------------------------------------------------------------
@@ -234,7 +270,10 @@ class ATRStopLossHandler(StockQuoteHandlerBase):
                             holding = self.holdings[code]
                             avg_cost = holding.avg_cost
 
-                            # Calculate real-time profit/loss
+                            # Calculate real-time profit/loss, safeguard against div by zero
+                            if avg_cost <= 0:
+                                continue
+                                
                             profit_pct = (current_price - avg_cost) / avg_cost
 
                             # Update highest price in real-time (for trailing stop)
@@ -475,43 +514,68 @@ def start_scheduler(batch_interval=5.0):
     # Start API
     api_thread = start_api_server_thread()
 
-    # T+1 Rollover session: Before A/HK market opens
-    schedule.every().day.at("09:00").do(job_rollover_t1)
+    # T+1 Rollover session: Before A/HK market opens (08:55)
+    schedule.every().day.at("08:55").do(job_rollover_t1)
 
     # A-Share session: 09:30-11:30, 13:00-15:00
-    # Run intraday (11:30) and pre-close (14:50) for MTF hourly/daily strategy
-    schedule.every().day.at("11:30").do(job_a_share)
-    schedule.every().day.at("14:50").do(job_a_share) # Pre-close execution
+    # Staggered schedule to avoid conflicts with HK-Share
+    # 10:00 - Intraday analysis (morning)
+    # 11:20 - Pre-close preparation (morning)
+    # 14:00 - Afternoon opening
+    # 14:40 - Pre-close preparation (afternoon)
+    schedule.every().day.at("10:00").do(job_a_share)
+    schedule.every().day.at("11:20").do(job_a_share)
+    schedule.every().day.at("14:00").do(job_a_share)
+    schedule.every().day.at("14:40").do(job_a_share)
 
     # HK-Share session: 09:30-12:00, 13:00-16:00
-    # Run intraday (11:30, 14:00) and pre-close (15:50)
+    # Staggered schedule to avoid conflicts with A-Share
+    # 10:30 - Intraday analysis (morning)
+    # 11:30 - Pre-close preparation (morning)
+    # 14:30 - Afternoon analysis
+    # 15:30 - Pre-close preparation (afternoon)
+    schedule.every().day.at("10:30").do(job_hk_share)
     schedule.every().day.at("11:30").do(job_hk_share)
-    schedule.every().day.at("14:00").do(job_hk_share)
-    schedule.every().day.at("15:50").do(job_hk_share) # Pre-close execution
+    schedule.every().day.at("14:30").do(job_hk_share)
+    schedule.every().day.at("15:30").do(job_hk_share)
 
     logger.info("=" * 60)
     logger.info("Scheduler configured:")
     logger.info("  - Real-time monitoring: ACTIVE (background thread)")
     logger.info("  - API Server: ACTIVE (127.0.0.1:8069 background thread)")
-    logger.info("  - A-Share analysis: 11:30, 14:50")
-    logger.info("  - HK-Share analysis: 11:30, 14:00, 15:50")
-    logger.info("  - T+1 rollover: 09:00")
+    logger.info("  - A-Share analysis: 10:00, 11:20, 14:00, 14:40")
+    logger.info("  - HK-Share analysis: 10:30, 11:30, 14:30, 15:30")
+    logger.info("  - T+1 rollover: 08:55")
+    logger.info("  - Holiday checking: ENABLED (skips trading on holidays)")
+    logger.info("  - Execution time monitoring: ENABLED")
     logger.info("=" * 60)
     logger.info("Press Ctrl+C to stop.")
 
-    # Run initial startup analysis ONLY if market is open
-    logger.info("Checking if market is open for initial startup analysis...")
-    if is_market_open(MarketType.A_SHARE):
-        logger.info("A-Share market is open. Running initial analysis...")
-        job_a_share()
-    else:
-        logger.info("A-Share market is CLOSED. Skipping initial analysis.")
+    # Check command line arguments for force-run mode
+    force_run = False
+    if len(sys.argv) > 1 and sys.argv[1] == '--force':
+        force_run = True
 
-    if is_market_open(MarketType.HK_SHARE):
-        logger.info("HK-Share market is open. Running initial analysis...")
-        job_hk_share()
+    # Run initial startup analysis
+    if force_run:
+        logger.info("Force-run mode enabled. Bypassing market open checks for initial analysis...")
+        logger.info("Running initial A-Share analysis...")
+        job_a_share(force=True)
+        logger.info("Running initial HK-Share analysis...")
+        job_hk_share(force=True)
     else:
-        logger.info("HK-Share market is CLOSED. Skipping initial analysis.")
+        logger.info("Checking if market is open for initial startup analysis...")
+        if is_market_open(MarketType.A_SHARE):
+            logger.info("A-Share market is open. Running initial analysis...")
+            job_a_share()
+        else:
+            logger.info("A-Share market is CLOSED. Skipping initial analysis.")
+
+        if is_market_open(MarketType.HK_SHARE):
+            logger.info("HK-Share market is open. Running initial analysis...")
+            job_hk_share()
+        else:
+            logger.info("HK-Share market is CLOSED. Skipping initial analysis.")
 
     try:
         while True:

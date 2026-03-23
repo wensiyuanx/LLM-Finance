@@ -72,8 +72,11 @@ class OrderExecutor:
         )
         self.db.add(trade_record)
         
-        self.db.commit()
-        self.db.refresh(trade_record)
+        # NOTE: Do NOT call self.db.commit() here! 
+        # Committing here breaks transaction atomicity for the caller 
+        # (who needs to update Wallet and Holding in the same transaction).
+        # We flush to get the ID instead.
+        self.db.flush()
 
         logger.info(f"[{status}] Executed {action.name} {quantity} shares of {code} at {price}. Reason: {reason}")
         return trade_record
