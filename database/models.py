@@ -30,6 +30,7 @@ class AssetMonitor(Base):
     
     last_price = Column(Float, nullable=True) # Real-time price from websocket
     last_updated = Column(DateTime, nullable=True) # Last time price was updated
+    board_lot = Column(Integer, default=100) # Minimum trading unit (e.g. 100 for A-Share)
     
     created_at = Column(DateTime, default=get_beijing_time)
 
@@ -106,6 +107,7 @@ class Holding(Base):
     market_type = Column(Enum(MarketType), nullable=False)
     tranches_count = Column(Integer, default=0) # Number of grid tranches (for ETF strategy)
     is_trend = Column(Integer, default=0)       # 1 if entered via Trend Breakout, 0 for Grid
+    last_price = Column(Float, default=0.0)     # Real-time price (updated by monitor/bot)
     highest_price = Column(Float, default=0.0)  # Highest price seen while holding (for trailing stop)
     updated_at = Column(DateTime, default=get_beijing_time, onupdate=get_beijing_time)
     created_at = Column(DateTime, default=get_beijing_time)

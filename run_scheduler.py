@@ -202,28 +202,43 @@ class ATRStopLossHandler(StockQuoteHandlerBase):
 
         session = SessionLocal()
         try:
-            # Batch query for all assets that need updating
             codes_to_update = list(updates_to_process.keys())
+            # 1. Update AssetMonitor in batch
             assets = session.query(AssetMonitor).filter(
                 AssetMonitor.code.in_(codes_to_update)
             ).all()
-
-            # Create dict for quick lookup
             asset_dict = {asset.code: asset for asset in assets}
 
-            # Update all assets in batch
+            # 2. Update Holding in batch for active positions
+            from database.models import Holding
+            holdings_db = session.query(Holding).filter(
+                Holding.code.in_(codes_to_update),
+                Holding.quantity > 0
+            ).all()
+            holding_dict = {h.code: h for h in holdings_db}
+
             updated_count = 0
             for code, (price, timestamp) in updates_to_process.items():
+                # Update AssetMonitor
                 if code in asset_dict:
                     asset_dict[code].last_price = price
                     asset_dict[code].last_updated = timestamp
                     updated_count += 1
-
-                    # Update cache
+                
+                # Update Holding real-time price
+                if code in holding_dict:
+                    holding_db_row = holding_dict[code]
+                    holding_db_row.last_price = price
+                    # Also sync highest_price from memory to DB
                     with self.lock:
-                        if code in self.asset_cache:
-                            self.asset_cache[code].last_price = price
-                            self.asset_cache[code].last_updated = timestamp
+                        if code in self.holdings:
+                            holding_db_row.highest_price = self.holdings[code].highest_price
+
+                # Update memory cache for monitor
+                with self.lock:
+                    if code in self.asset_cache:
+                        self.asset_cache[code].last_price = price
+                        self.asset_cache[code].last_updated = timestamp
 
             # Single commit for all updates
             session.commit()
@@ -270,22 +285,16 @@ class ATRStopLossHandler(StockQuoteHandlerBase):
                             holding = self.holdings[code]
                             avg_cost = holding.avg_cost
 
+                            # Update real-time price and highest price in memory
+                            holding.last_price = current_price
+                            if current_price > holding.highest_price:
+                                holding.highest_price = current_price
+                            
                             # Calculate real-time profit/loss, safeguard against div by zero
                             if avg_cost <= 0:
                                 continue
                                 
                             profit_pct = (current_price - avg_cost) / avg_cost
-
-                            # Update highest price in real-time (for trailing stop)
-                            if current_price > holding.highest_price:
-                                holding.highest_price = current_price
-                                # Note: the batch writer will eventually flush AssetMonitor last_price,
-                                # but we commit high-priority state like highest_price immediately 
-                                # if we want it to be rock-solid, or just rely on the next batch.
-                                # Let's update the DB row for highest_price under the lock/session
-                                # if we are already in a session. 
-                                # Actually, we'll wait for the next refresh_state to sync from DB
-                                # or we can do a quick update here.
                             
                             # 1. Hard Stop-Loss check (e.g. -8%)
                             if profit_pct <= -0.08:
@@ -313,64 +322,66 @@ class ATRStopLossHandler(StockQuoteHandlerBase):
 
     def _trigger_sell(self, code, price, reason):
         """Execute a mock sell for the real-time trigger"""
-        logger.info(f"[RealTime Exec] Executing SELL for {code} at {price} due to {reason}")
-        from engine.executor import OrderExecutor
-        from database.models import TradeAction, UserWallet, Holding
-        session = SessionLocal()
-        try:
-            with self.lock:
-                if code not in self.holdings:
-                    return
-                holding_mem = self.holdings[code]
-                qty = holding_mem.sellable_quantity
-                user_id = holding_mem.user_id
-                
-                if qty <= 0:
-                    logger.warning(f"[RealTime Exec] Cannot sell {code}, sellable quantity is 0 (T+1 locked?)")
-                    del self.holdings[code]
-                    return
+        from engine.trade_lock import GlobalTradeLock
+        with GlobalTradeLock._lock:  # Acquire the global lock to prevent main bot from conflicting
+            logger.info(f"[RealTime Exec] Executing SELL for {code} at {price} due to {reason}")
+            from engine.executor import OrderExecutor
+            from database.models import TradeAction, UserWallet, Holding
+            session = SessionLocal()
+            try:
+                # Still use self.lock for internal state protection
+                with self.lock:
+                    if code not in self.holdings:
+                        return
+                    holding_mem = self.holdings[code]
+                    qty = holding_mem.sellable_quantity
+                    user_id = holding_mem.user_id
                     
-                executor = OrderExecutor(db_session=session, futu_client=None, simulate=True)
-                trade_record = executor.execute_trade(
-                    user_id=user_id,
-                    code=code,
-                    action=TradeAction.SELL,
-                    price=price,
-                    quantity=qty,
-                    reason=reason
-                )
-                
-                if trade_record:
-                    wallet = session.query(UserWallet).filter(
-                        UserWallet.user_id == user_id,
-                        UserWallet.market_type == holding_mem.market_type
-                    ).first()
-                    
-                    if wallet:
-                        proceeds = qty * price
-                        wallet.balance += proceeds
+                    if qty <= 0:
+                        logger.warning(f"[RealTime Exec] Cannot sell {code}, sellable quantity is 0 (T+1 locked?)")
+                        del self.holdings[code]
+                        return
                         
-                    holding_db = session.query(Holding).filter(Holding.id == holding_mem.id).first()
-                    if holding_db:
-                        holding_db.quantity -= qty
-                        holding_db.sellable_quantity -= qty
-                        if holding_db.quantity <= 0.001:
-                            holding_db.quantity = 0.0
-                            holding_db.avg_cost = 0.0
-                            holding_db.sellable_quantity = 0.0
-                            holding_db.tranches_count = 0
-                        else:
-                            holding_db.tranches_count = max(1, holding_db.tranches_count - 1)
-                            
-                    session.commit()
-                    logger.info(f"[RealTime Exec] DB Updated. Sold {qty} shares of {code}.")
-                
-                del self.holdings[code]
-        except Exception as e:
-            session.rollback()
-            logger.error(f"[RealTime Exec] DB Error: {e}")
-        finally:
-            session.close()
+                    executor = OrderExecutor(db_session=session, futu_client=None, simulate=True)
+                    trade_record = executor.execute_trade(
+                        user_id=user_id,
+                        code=code,
+                        action=TradeAction.SELL,
+                        price=price,
+                        quantity=qty,
+                        reason=reason
+                    )
+                    
+                    if trade_record:
+                        # --- ATOMIC WALLET UPDATE ---
+                        from sqlalchemy import update
+                        stmt = update(UserWallet).where(
+                            UserWallet.user_id == user_id,
+                            UserWallet.market_type == holding_mem.market_type
+                        ).values(balance=UserWallet.balance + (qty * price))
+                        session.execute(stmt)
+                        
+                        holding_db = session.query(Holding).filter(Holding.id == holding_mem.id).first()
+                        if holding_db:
+                            holding_db.quantity -= qty
+                            holding_db.sellable_quantity -= qty
+                            if holding_db.quantity <= 0.001:
+                                holding_db.quantity = 0.0
+                                holding_db.avg_cost = 0.0
+                                holding_db.sellable_quantity = 0.0
+                                holding_db.tranches_count = 0
+                            else:
+                                holding_db.tranches_count = max(1, holding_db.tranches_count - 1)
+                                
+                        session.commit()
+                        logger.info(f"[RealTime Exec] DB Updated. Sold {qty} shares of {code}.")
+                    
+                    del self.holdings[code]
+            except Exception as e:
+                session.rollback()
+                logger.error(f"[RealTime Exec] DB Error: {e}")
+            finally:
+                session.close()
 
     def get_performance_stats(self):
         """Get performance statistics for monitoring"""

@@ -26,35 +26,26 @@ class OrderExecutor:
             # Real-order path: guard against unconfigured trade_ctx to prevent
             # wallet/holding state from being updated without an actual order.
             if self.futu is None or self.futu.trade_ctx is None:
-                print(f"[ERROR] simulate=False but Futu trade_ctx is not initialised. "
-                      f"Order REJECTED ({action.name} {code}). "
-                      f"Initialise trade_ctx in FutuClient or keep simulate=True.")
-                return None  # caller checks for None and will NOT update wallet/holdings
+                logger.error(f"simulate=False but Futu trade_ctx is not initialised. Order REJECTED ({action.name} {code}).")
+                return None
 
-            # --- Live order implementation (uncomment when ready for real trading) ---
-            # trd_side = TrdSide.BUY if action == TradeAction.BUY else TrdSide.SELL
-            # ret, data = self.futu.trade_ctx.place_order(
-            #     price=price, qty=quantity, code=code,
-            #     trd_side=trd_side, order_type=OrderType.NORMAL,
-            #     trd_env=TrdEnv.REAL
-            # )
-            # if ret == RET_OK:
-            #     order_id = data['order_id'][0]
-            #     status = "FILLED"
-            #     # Stage 2: Stop-loss order directly sent to Futu instead of waiting for next day.
-            #     if action == TradeAction.BUY:
-            #         # Assume placing 5% dynamic stop loss
-            #         stop_price = round(price * 0.95, 2)
-            #         ret_stop, data_stop = self.futu.trade_ctx.place_order(
-            #             price=stop_price, qty=quantity, code=code,
-            #             trd_side=TrdSide.SELL, order_type=OrderType.ABSOLUTE_LIMIT,
-            #             trd_env=TrdEnv.REAL,
-            #             remark=f"Auto-stop at {stop_price}"
-            #         )
-            # else:
-            #     print(f"[ERROR] Futu place_order failed: {data}")
-            #     return None
-            pass  # remove this line once the above is uncommented
+            from futu import RET_OK
+            trd_side = TrdSide.BUY if action == TradeAction.BUY else TrdSide.SELL
+            
+            # --- Live order implementation ---
+            ret, data = self.futu.trade_ctx.place_order(
+                price=price, qty=quantity, code=code,
+                trd_side=trd_side, order_type=OrderType.NORMAL,
+                trd_env=TrdEnv.REAL
+            )
+            
+            if ret == RET_OK:
+                order_id = data['order_id'][0]
+                status = "SUBMITTED_LIVE"
+                logger.info(f"[LIVE] Order submitted successfully: {order_id}")
+            else:
+                logger.error(f"Futu place_order failed for {code}: {data}")
+                return None
         else:
             # Simulation mode
             status = "SIMULATED_FILLED"

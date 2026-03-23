@@ -2,6 +2,8 @@ import os
 import platform
 import pandas as pd
 import mplfinance as mpf
+import matplotlib
+matplotlib.use('Agg') # Set non-interactive backend for background threads
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 

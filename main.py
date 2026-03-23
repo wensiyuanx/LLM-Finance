@@ -143,8 +143,14 @@ async def get_wallet(db, user_id: int, market_type):
     return result.scalar_one_or_none()
 
 
-async def update_wallet(db, wallet, delta: float):
-    wallet.balance = round(wallet.balance + delta, 4)
+async def update_wallet(db, user_id: int, market_type, delta: float):
+    """Atomic wallet update to prevent race conditions."""
+    from sqlalchemy import update
+    stmt = update(UserWallet).where(
+        UserWallet.user_id == user_id,
+        UserWallet.market_type == market_type
+    ).values(balance=UserWallet.balance + delta)
+    await db.execute(stmt)
     await db.commit()
 
 
@@ -391,7 +397,9 @@ async def run_trading_bot(market_filter=None, force=False):
                     current_cash=wallet.balance, 
                     total_value=total_value, 
                     max_position_pct=POSITION_SIZE_FRAC,
-                    max_total_exposure_pct=max_exposure
+                    max_total_exposure_pct=max_exposure,
+                    max_concurrent_assets=config["global"].get("max_concurrent_assets", 3),
+                    active_holdings_count=len(holdings)
                 )
                 signals_context = []
                 asset_stats = {} 
@@ -462,6 +470,7 @@ async def run_trading_bot(market_filter=None, force=False):
                     current_price = float(klines_60m_with_ind['close'].iloc[-1])
                     
                     if holding.quantity > 0:
+                        holding.last_price = current_price # Update current price for UI/analysis
                         if holding.highest_price == 0:
                             if current_price > holding.avg_cost:
                                 holding.highest_price = current_price
@@ -504,39 +513,42 @@ async def run_trading_bot(market_filter=None, force=False):
                             'price': latest_close, 'sellable_qty': holding.sellable_quantity,
                             'reason': reason, 'score': score, 'is_trend_entry': is_trend_entry,
                             'is_etf': is_etf_asset, 'tranches_count': holding.tranches_count,
-                            'current_holding_val': holding.quantity * latest_close
+                            'current_holding_val': holding.quantity * latest_close,
+                            'board_lot': getattr(asset, 'board_lot', 100)
                         })
 
                 # Portfolio Manager resolution
-                executable_orders = pm.evaluate_signals(signals_context)
-                
-                # Execute evaluated orders
-                for order in executable_orders:
-                    code = order['code']
-                    action = order['action']
-                    qty = order['quantity']
-                    price = order['price'] * 1.002 if action == TradeAction.BUY else order['price'] * 0.998
-                    reason = order['reason']
-                    holding = asset_stats[code]['holding']
-                    is_t1 = (market_type == MarketType.A_SHARE)
+                from engine.trade_lock import GlobalTradeLock
+                with GlobalTradeLock._lock: # Protect evaluation and execution together
+                    executable_orders = pm.evaluate_signals(signals_context)
                     
-                    if not is_market_open(market_type) and not force:
-                        logger.warning("[%s] Market is CLOSED. Skipping Execution.", code)
-                        continue
+                    # Execute evaluated orders
+                    for order in executable_orders:
+                        code = order['code']
+                        action = order['action']
+                        qty = order['quantity']
+                        price = order['price'] * 1.002 if action == TradeAction.BUY else order['price'] * 0.998
+                        reason = order['reason']
+                        holding = asset_stats[code]['holding']
+                        is_t1 = (market_type == MarketType.A_SHARE)
+                        
+                        if not is_market_open(market_type) and not force:
+                            logger.warning("[%s] Market is CLOSED. Skipping Execution.", code)
+                            continue
 
-                    if action == TradeAction.SELL:
-                        trade_record = await asyncio.to_thread(executor.execute_trade, user_id, code, action, price=price, quantity=qty, reason=reason)
-                        if trade_record:
-                            await update_wallet(db_session, wallet, qty * price)
-                            await update_holding_sell(db_session, holding, qty)
-                            logger.info(f"已卖出 {qty} 股 {code} @ {price:.3f}")
-                            
-                    elif action == TradeAction.BUY:
-                        trade_record = await asyncio.to_thread(executor.execute_trade, user_id, code, action, price=price, quantity=qty, reason=reason)
-                        if trade_record:
-                            await update_wallet(db_session, wallet, -(qty * price))
-                            await update_holding_buy(db_session, holding, qty, price, is_t1=is_t1, is_trend=order.get('is_trend_entry', False))
-                            logger.info(f"已买入 {qty} 股 {code} @ {price:.3f}")
+                        if action == TradeAction.SELL:
+                            trade_record = await asyncio.to_thread(executor.execute_trade, user_id, code, action, price=price, quantity=qty, reason=reason)
+                            if trade_record:
+                                await update_wallet(db_session, user_id, market_type, qty * price)
+                                await update_holding_sell(db_session, holding, qty)
+                                logger.info(f"已卖出 {qty} 股 {code} @ {price:.3f}")
+                                
+                        elif action == TradeAction.BUY:
+                            trade_record = await asyncio.to_thread(executor.execute_trade, user_id, code, action, price=price, quantity=qty, reason=reason)
+                            if trade_record:
+                                await update_wallet(db_session, user_id, market_type, -(qty * price))
+                                await update_holding_buy(db_session, holding, qty, price, is_t1=is_t1, is_trend=order.get('is_trend_entry', False))
+                                logger.info(f"已买入 {qty} 股 {code} @ {price:.3f}")
 
         except Exception as e:
             await db_session.rollback()

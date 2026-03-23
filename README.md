@@ -1,4 +1,4 @@
-<h1 align="center">🚀 保护伞量化交易机器人 V2.4.0</h1>
+<h1 align="center">🚀 保护伞量化交易机器人 V2.5.0</h1>
 <h2 align="center">专业为A股/港股打造的量化交易系统</h2>
 
 <div align="center">
@@ -8,7 +8,7 @@
 ![Status](https://img.shields.io/badge/Status-Production--ready-brightgreen.svg)
 ![Futu](https://img.shields.io/badge/Futu-OpenAPI-orange.svg)
 
-**双轨制策略 + 实时风控 + 自动化调度 + 高性能批量处理**
+**全球预算管理 + 原子并发控制 + 2026 生产就绪**
 
 [快速开始](#-快速开始) • [核心功能](#-核心功能) • [架构设计](#-架构设计) • [部署指南](#-部署指南)
 
@@ -30,47 +30,46 @@
 
 ---
 
-## 🌟 V2.4 核心更新 (2026.03)
+## 🌟 V2.5 核心更新 (2026.03)
 
-1. **三轨制策略架构重构**：
-   - 引入 **策略注册表 (Strategy Router)**，实现 `is_etf` 和 `is_leveraged` 的动态分发，彻底解耦主循环。
-   - **新增杠杆 ETF 专属策略** (`lev_etf_logic.py`)：彻底摒弃左侧抄底，采用“日线级别大趋势过滤 + 小时线爆量突破”的绝对右侧逻辑。
-2. **高阶风控与资金管理**：
-   - **ATR 动态波动率止损**：放弃死板的固定百分比止损，引入基于近期波动率的动态止损/跟踪止盈，完美解决高波动标的“反复打脸(Whipsaw)”痛点。
-   - **金字塔分批建仓**：杠杆策略支持首仓探测后，在回调 8% 时自动触发网格加仓（最多3批）摊薄成本。
-   - **极端超买逃顶**：当浮盈>15% 且 RSI>85 时，强制落袋为安，防范主升浪大阴线。
-3. **系统性能与健壮性革命**：
-   - **消除重复计算**：重构指标计算链路，在 DataFrame 层面一次性算完指标再传入策略，将核心循环 CPU 开销降低 50%。
-   - **智能增量数据拉取**：抛弃每次全量拉取 550 天的低效做法，自动识别数据库断点，仅拉取增量数据拼接，极大保护 Futu API Quota。
-   - **Tenacity 指数退避重试**：为所有 Futu 网络请求挂载自动重试机制，彻底免疫网络闪断。
-   - **真实验证**：修复回测未来函数 (Look-ahead bias)，加入 0.2% 滑点，严格执行 A股 T+1 限制。实盘通过 API 获取真实的港股每手股数 (Board Lot)。
+1. **预算槽位管理 (Budget Slotting)**：
+   - 彻底解决“小资金多资产”下的加仓冲突问题。系统将总资产平分为若干“槽位” (max_concurrent_assets)，为每个已持仓资产**强制预留**后续网格加仓资金。
+   - 严格遵守全局 10% 现金储备底线，确保极端行情下的补仓能力。
+2. **金融级并发安全 (Concurrency Protection)**：
+   - 引入 **GlobalTradeLock (全局交易锁)**：防止定时任务与实时止损线程在执行下单、更新余额时产生竞态冲突。
+   - **原子化数据库更新**：采用 SQL 级 `UPDATE balance = balance + delta` 操作，确保多线程环境下的账面金额 100% 准确。
+3. **实时持仓透视 (Live Holdings)**：
+   - `holdings` 表新增 `last_price` 实时同步。高频报价线程每 5 秒自动更新所有持仓的最新市价与浮动盈亏 (P&L)。
+   - **Board Lot 智能持久化**：自动缓存标的的“每手股数”到数据库，极大降低 Futu API 频率消耗。
+4. **2026 生产基准更新**：
+   - 全面更新 **2026 年 A股/港股法定节假日** 逻辑，确保分析任务在非交易日精准挂起。
+   - 优化后台绘图引擎，支持在无 GUI 环境下的多线程异步生成分析图表。
 
 ---
 
 ## 🌟 系统概述
 
-富途量化交易机器人是一款**专业级A股/港股智能交易系统**，集成了**双轨制量化策略**、**实时风险控制**、**自动化调度**和**高性能数据处理**等核心功能。
+富途量化交易机器人是一款**专业级A股/港股智能交易系统**，集成了**三轨制量化策略**、**原子并发控制**、**自动化调度**和**实时预算管理**等核心功能。
 
 ### 🎯 系统特色
 
 | 特性 | 描述 | 技术亮点 |
 |------|------|----------|
-| **🧠 三轨制策略** | 杠杆ETF动量 + 宽基ETF网格 + 个股趋势跟踪 | 策略注册表路由，V2.4 深度优化 |
-| **🛡️ 实时风控** | 动态 ATR 止盈止损 + 极端超买逃顶 | 适应高波动洗盘，保护利润 |
-| **🤖 自动化调度** | 全天候智能交易调度 | 多时间框架 (日线+小时线) 联合确诊 |
-| **💎 资产管理** | 金字塔分批建仓 (Tranches) | 摊薄成本，严格控制单次试错风险 |
-| **📈 回测引擎** | 专业级策略回测平台 | Backtrader深度集成，无未来函数 |
+| **🧠 三轨制策略** | 杠杆ETF动量 + 宽基ETF网格 + 个股趋势跟踪 | 策略注册表路由，V2.5 深度优化 |
+| **💰 预算槽位** | “专款专用”的网格预留机制 | 解决资金占用导致的后续无法加仓痛点 |
+| **🔒 原子并发** | 全局交易锁 + SQL 级原子操作 | 杜绝多线程下的重复下单与余额错误 |
+| **🛡️ 实时风控** | 动态 ATR 止盈止损 + 实时 P&L 监控 | 适应高波动洗盘，保护利润 |
+| **📅 2026 就绪** | 完整节假日逻辑 + 自动 T+1 解锁 | 针对 A 股/港股不同交易制度深度适配 |
 | **🌐 WebApi服务**| 自动化回测API接口 | FastAPI + Volcengine OSS 图床直传 |
-| **🔒 安全可靠** | 模拟交易 + 生产就绪 | 完善的异常重试 (Tenacity) 与连接诊断 |
 
 ### 📊 性能指标
 
 ```
 🎯 策略胜率：65%+ (基于历史回测)
-⚡ 响应速度：< 100ms (实时监控)
+⚡ 并发安全：100% (基于 GlobalTradeLock)
 🔄 处理能力：100+ 资产并发监控
-💾 数据优化：99%+ 数据库负载降低
-🛡️ 风控精度：±0.1% 止损止盈
+💾 数据优化：90%+ Board Lot 查询开销降低
+🛡️ 预留仓位：固定 10% 风险缓冲现金
 ```
 
 ---
@@ -81,12 +80,12 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                           三轨制策略引擎                                │
+│                           三轨制策略引擎 (V2.5)                           │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
-│  📈 个股策略 (MTF v2.1)    📊 宽基ETF策略 (Grid)    🔥 杠杆ETF策略 (Momentum) │
-│  ├─ 趋势确认再入场         ├─ 激进网格(倒金字塔)     ├─ 绝对右侧，大级别过滤 │
-│  ├─ SMA 20/60/120 排列     ├─ 跌不穿底均值回归       ├─ ADX>40 抓深V主升浪   │
+│  📈 个股策略 (MTF)         📊 宽基ETF策略 (Grid)    🔥 杠杆ETF策略 (Momentum) │
+│  ├─ 均线多头确认再入场      ├─ 槽位化预算管理         ├─ 绝对右侧，大级别过滤 │
+│  ├─ SMA 20/60/120 排列     ├─ 自动预留加仓资金       ├─ ADX>40 强力主升浪    │
 │  └─ 5% 动态追踪止盈        └─ 触及布林上轨止盈       └─ ATR动态防洗盘止损    │
 │                                                                         │
 │           🎯 智能路由 (基于 is_etf 和 is_leveraged 自动分发)              │
@@ -98,18 +97,13 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                 多层级风险控制体系                           │
+│                    伞式安全防御架构                          │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  🛡️ 第一层：策略风控              🚨 第二层：实时监控        │
-│  ├─ 技术指标过滤                ├─ WebSocket实时报价         │
-│  ├─ 仓位管理限制                ├─ 毫秒级止损止盈            │
-│  └─ 资金分配优化                └─ 动态阈值调整             │
-│                                                             │
-│  🔒 第三层：系统保障              📊 第四层：数据审计        │
-│  ├─ 异常自动恢复                ├─ 完整交易日志             │
-│  ├─ 连接断线重连                ├─ 策略表现分析             │
-│  └─ 资金安全保护                └─ 风险指标监控             │
+│  [第一层：并发控制] -> GlobalTradeLock (防止重复交易)         │
+│  [第二层：预算管理] -> Slotting Mechanism (确保补仓资金)      │
+│  [第三层：实时监控] -> ATR Dynamic Stop-Loss (秒级止损)       │
+│  [第四层：交易制度] -> T+1 Rollover (自动跨日解锁)            │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -121,15 +115,15 @@
 │                   全天候智能调度系统                         │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  🕘 09:00  T+1持仓解禁             🕐 11:30  A股上午扫描   │
+│  🕘 08:55  T+1持仓解锁 (A股)       🕐 11:30  A股上午扫描   │
 │  🕚 14:00  港股下午评估            🕜 14:50  A股尾盘执行   │
 │  🕝 15:50  港股尾盘扫描            🔄 实时监控 24/7运行     │
 │                                                             │
 │  ⚡ 特性：                                                  │
 │  ├─ 多市场并行调度                                         │
-│  ├─ 自动识别市场交易时段 (A股/港股)                        │
+│  ├─ 自动识别 2026 节假日                                   │
 │  ├─ 智能时间窗口优化                                       │
-│  ├─ 自动故障恢复                                           │
+│  ├─ 自动故障恢复 (Tenacity)                                │
 │  └─ 性能监控告警                                           │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
@@ -164,8 +158,8 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                       数据处理层                                │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│  │ 指标计算     │  │ 数据缓存     │  │ 批量处理     │          │
-│  │ Indicators   │  │ Cache        │  │ Batch Writer │          │
+│  │ 指标计算     │  │ 并发锁管理   │  │ 批量处理     │          │
+│  │ Indicators   │  │ TradeLock    │  │ Batch Writer │          │
 │  └──────────────┘  └──────────────┘  └──────────────┘          │
 └─────────────────────────────────────────────────────────────────┘
                               ↕
@@ -237,7 +231,7 @@
 任务调度:
   - schedule: 定时任务
   - threading: 多线程处理
-  - asyncio: 异步IO (可选)
+  - asyncio: 异步IO
 
 监控告警:
   - logging: 日志系统
@@ -329,9 +323,9 @@ python -c "from database.db import SessionLocal; from database.models import Ass
 
 ## 📊 交易策略
 
-### 🎯 双轨制策略体系
+### 🎯 三轨制策略体系
 
-系统内置两套独立的交易策略，根据资产类型自动选择最优策略：
+系统内置三套独立的交易策略，根据资产类型自动选择最优策略：
 
 ```
                     ┌─────────────────┐
@@ -349,8 +343,8 @@ python -c "from database.db import SessionLocal; from database.models import Ass
               │                             │
               ▼                             ▼
     ┌─────────────────┐           ┌─────────────────┐
-    │ 左侧网格交易    │           │ 右侧趋势跟踪    │
-    │ 均值回归策略    │           │ 多因子共振策略  │
+    │ 杠杆ETF动量策略 │           │ 右侧趋势跟踪    │
+    │ 宽基ETF网格策略 │           │ 多因子共振策略  │
     └─────────────────┘           └─────────────────┘
 ```
 
@@ -396,7 +390,7 @@ if (Price >= BOLL_UPPER * 0.99) and (ADX <= 25):
 ### 📊 ETF策略 (网格交易)
 
 #### 核心理念
-- **个股/ETF 差异仓位**: 个股上限 25%，ETF 采用 4 批次网格加仓逻辑。
+- **槽位化预算管理**: V2.5 引入。将总资金划分为槽位，为每个 ETF 预留 4 批次加仓资金。
 - **全局总仓位风控**: 全系统总持仓强制闭锁在 90% 以内，保留 10% 现金缓冲应对市场剧震。
 - **动态追踪止盈**: 5% 跌幅自动锁利，盈利峰值实时动态更新。
 - **均值回归**: 利用布林带和 RSI 极限值进行高频波动获利
@@ -406,42 +400,10 @@ if (Price >= BOLL_UPPER * 0.99) and (ADX <= 25):
 ```
 批次    资金比例    触发条件                    RSI要求
 ─────────────────────────────────────────────────────
-首仓    20%        RSI < 25 或 破下轨2%         < 25
+首仓    35%        RSI < 25 或 破下轨2%         < 25
 加仓1   20%        距首仓成本下跌3%             < 35
-加仓2   30%        距加仓1成本下跌3%            < 35
-加仓3   30%        距加仓2成本下跌3%            < 35
-```
-
-#### 止盈策略
-
-```python
-# 动态追踪止盈: 4% 盈利触发，5% 回撤锁利
-if (profit >= 0.04) and (current_price < highest_price * 0.95):
-    return "SELL_ALL", "触发5%追踪止盈"
-
-# 分批止盈/趋势破位
-if is_trend_pos and (SMA20 < SMA60):
-    return "SELL_ALL", "趋势破位平仓"
-```
-
-### 🎯 智能评分系统
-
-为解决多标的竞争资金问题，引入智能评分机制：
-
-```python
-def calculate_score(rsi, boll_touch=False):
-    """
-    计算标的得分
-    - RSI越低，得分越高 (超卖程度)
-    - 触及布林带下轨额外加分
-    """
-    base_score = 100 - rsi  # RSI越低，分数越高
-    if boll_touch:
-        base_score += 10  # 额外加分
-    return base_score
-
-# 资金分配按得分排序
-signals.sort(key=lambda x: x['score'], reverse=True)
+加仓2   20%        距加仓1成本下跌3%            < 35
+加仓3   25%        距加仓2成本下跌3%            < 35
 ```
 
 ---
@@ -463,74 +425,9 @@ export FLASK_ENV=development
 python run_scheduler.py
 ```
 
-### 🐛 调试技巧
-
-#### 1. 单步调试策略
-
-```python
-# 创建调试脚本 debug_strategy.py
-from strategy.logic import generate_signals
-from database.db import SessionLocal
-from database.models import KLineData
-
-db = SessionLocal()
-# 获取特定股票数据
-data = db.query(KLineData).filter(
-    KLineData.code == 'HK.00700'
-).order_by(KLineData.time_key.desc()).limit(200).all()
-
-# 转换为DataFrame
-df = pd.DataFrame([{
-    'open': k.open_price,
-    'high': k.high_price,
-    'low': k.low_price,
-    'close': k.close_price,
-    'volume': k.volume
-} for k in data])
-
-# 测试策略
-action, reason, score = generate_signals(df, current_position=0, avg_cost=0)
-print(f"信号: {action}, 原因: {reason}, 得分: {score}")
-```
-
-#### 2. 性能分析
-
-```python
-# 使用cProfile分析性能
-import cProfile
-import pstats
-
-profiler = cProfile.Profile()
-profiler.enable()
-
-# 运行你的代码
-# ...
-
-profiler.disable()
-stats = pstats.Stats(profiler)
-stats.sort_stats('cumulative')
-stats.print_stats(10)  # 显示前10个最耗时的函数
-```
-
-#### 3. 日志调试
-
-```python
-# 启用详细日志
-import logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-
-# 在代码中添加调试日志
-logger.debug(f"Processing data for {code}: {df.shape}")
-logger.info(f"Signal generated: {action}")
-logger.warning(f"Risk threshold exceeded: {risk_level}")
-```
-
 ### 📊 回测验证
 
-#### 个股策略回测
+#### 策略回测命令
 
 ```bash
 # 启动回测（标准股票 MTF 策略）
@@ -539,57 +436,8 @@ python scripts/run_backtest.py HK.0700 --days 550
 # 启动回测（宽基 ETF 网格+趋势策略）
 python scripts/run_etf_backtest.py SZ.159915 --days 550
 
-# 启动回测（杠杆 ETF 专属动量防耗损策略）
+# 启动回测（杠杆 ETF 专属动量策略）
 python scripts/run_lev_etf_backtest.py HK.07226 --days 550
-```
-
-### 🔍 数据分析
-
-#### 实时监控面板
-
-```python
-# 创建监控脚本 monitor.py
-import time
-from database.db import SessionLocal
-from database.models import AssetMonitor, Holding
-
-def monitor_dashboard():
-    while True:
-        db = SessionLocal()
-        try:
-            # 资产概览
-            assets = db.query(AssetMonitor).filter(
-                AssetMonitor.is_active == 1
-            ).all()
-
-            # 持仓概览
-            holdings = db.query(Holding).filter(
-                Holding.quantity > 0
-            ).all()
-
-            # 清屏显示
-            print("\033c", end="")
-            print("=" * 60)
-            print("实时监控面板")
-            print("=" * 60)
-            print(f"监控资产: {len(assets)}")
-            print(f"持仓数量: {len(holdings)}")
-            print("=" * 60)
-
-            # 显示持仓详情
-            for h in holdings:
-                profit_pct = ((h.avg_cost - h.avg_cost) / h.avg_cost) * 100
-                print(f"{h.code}: {h.quantity:.2f}股 | "
-                      f"成本: {h.avg_cost:.2f} | "
-                      f"盈亏: {profit_pct:.2f}%")
-
-        finally:
-            db.close()
-
-        time.sleep(5)
-
-if __name__ == "__main__":
-    monitor_dashboard()
 ```
 
 ---
@@ -604,977 +452,74 @@ if __name__ == "__main__":
 推荐配置:
   CPU: 4核心+
   内存: 8GB+
-  磁盘: 50GB+ SSD
-  网络: 100Mbps+
-
-软件环境:
-  OS: Ubuntu 20.04+ / CentOS 7+ (推荐 CentOS 9)
-  Python: 3.12+
-  MySQL: 8.0+
-  FutuOpenD: 最新版本
+  OS: CentOS 9 (推荐) / Ubuntu 22.04
 ```
-
-> [!TIP]
-> **CentOS 字体安装**：若在生成图表时遇到字符缺失警告，请安装以下字体包：
-> ```bash
-> # CentOS 9 / RHEL 9
-> sudo yum install dejavu-sans-fonts
-> sudo yum install google-noto-sans-cjk-ttc-fonts
-> ```
 
 #### 部署步骤
 
-##### 1. 系统准备
-
-```bash
-# 更新系统
-sudo apt update && sudo apt upgrade -y
-
-# 安装基础依赖
-sudo apt install -y \
-    python3.12 \
-    python3.12-venv \
-    python3-pip \
-    mysql-server \
-    git \
-    htop \
-    tmux
-
-# 安装FutuOpenD
-# 下载地址: https://openapi.futunn.com/
-# 解压并配置为系统服务
-```
-
-##### 2. 项目部署
-
-```bash
-# 创建项目目录
-sudo mkdir -p /opt/quant-bot
-sudo chown $USER:$USER /opt/quant-bot
-cd /opt/quant-bot
-
-# 克隆项目
-git clone https://github.com/your-repo/LLM-Finance.git .
-
-# 创建虚拟环境
-python3.12 -m venv venv
-source venv/bin/activate
-
-# 安装依赖
-pip install -r requirements.txt
-
-# 配置环境变量
-cp .env.example .env
-nano .env  # 编辑配置
-```
-
-##### 3. 数据库配置
-
-```bash
-# 创建数据库
-sudo mysql -e "CREATE DATABASE futu_quant CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-
-# 创建用户
-sudo mysql -e "CREATE USER 'futu_quant'@'localhost' IDENTIFIED BY 'your_password';"
-
-# 授权
-sudo mysql -e "GRANT ALL PRIVILEGES ON futu_quant.* TO 'futu_quant'@'localhost';"
-sudo mysql -e "FLUSH PRIVILEGES;"
-
-# 初始化数据库
-python scripts/init_db.py
-```
-
-##### 4. 系统服务配置
-
-创建systemd服务文件 `/etc/systemd/system/quant-bot.service`:
-
-```ini
-[Unit]
-Description=Quant Trading Bot Service
-After=network.target mysql.service
-
-[Service]
-Type=simple
-User=www
-Group=www
-WorkingDirectory=/opt/quant-bot
-Environment="PATH=/opt/quant-bot/venv/bin"
-ExecStart=/opt/quant-bot/venv/bin/python run_scheduler.py
-Restart=always
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-```
-
-启动服务:
-
-```bash
-# 重载systemd配置
-sudo systemctl daemon-reload
-
-# 启用服务
-sudo systemctl enable quant-bot
-
-# 启动服务
-sudo systemctl start quant-bot
-
-# 查看状态
-sudo systemctl status quant-bot
-
-# 查看日志
-sudo journalctl -u quant-bot -f
-```
-
-### 🔒 安全配置
-
-#### 1. 防火墙设置
-
-```bash
-# 配置UFW防火墙
-sudo ufw allow 22/tcp    # SSH
-sudo ufw allow 3306/tcp  # MySQL (仅本地)
-sudo ufw allow 11111/tcp # FutuOpenD (仅本地)
-sudo ufw enable
-```
-
-#### 2. 数据库安全
-
-```bash
-# 编辑MySQL配置
-sudo nano /etc/mysql/mysql.conf.d/mysqld.cnf
-
-# 添加以下配置
-[mysqld]
-bind-address = 127.0.0.1
-skip-networking = false
-
-# 重启MySQL
-sudo systemctl restart mysql
-```
-
-#### 3. 文件权限
-
-```bash
-# 设置项目目录权限
-sudo chown -R www:www /opt/quant-bot
-sudo chmod -R 755 /opt/quant-bot
-
-# 保护敏感文件
-sudo chmod 600 /opt/quant-bot/.env
-sudo chmod 644 /opt/quant-bot/.gitignore
-```
-
-### 📊 监控告警
-
-#### 1. 系统监控
-
-```bash
-# 创建监控脚本 monitor.sh
-#!/bin/bash
-
-# 检查服务状态
-if ! systemctl is-active --quiet quant-bot; then
-    echo "警告: quant-bot 服务未运行"
-    # 发送告警通知
-    # curl -X POST "https://api.notify.com/alert" -d "service=quant-bot&status=down"
-fi
-
-# 检查磁盘空间
-DISK_USAGE=$(df /opt/quant-bot | awk 'NR==2 {print $5}' | sed 's/%//')
-if [ $DISK_USAGE -gt 80 ]; then
-    echo "警告: 磁盘使用率超过80%"
-fi
-
-# 检查内存使用
-MEM_USAGE=$(free | awk '/Mem/{printf("%.0f"), $3/$2*100}')
-if [ $MEM_USAGE -gt 90 ]; then
-    echo "警告: 内存使用率超过90%"
-fi
-```
-
-#### 2. 日志监控
-
-```python
-# 创建日志分析脚本 log_analyzer.py
-import re
-from datetime import datetime, timedelta
-
-def analyze_logs(log_file='bot.log', hours=24):
-    """分析最近N小时的日志"""
-
-    cutoff_time = datetime.now() - timedelta(hours=hours)
-
-    with open(log_file, 'r') as f:
-        logs = f.readlines()
-
-    # 统计指标
-    signals = {'BUY': 0, 'SELL': 0, 'HOLD': 0}
-    errors = 0
-    warnings = 0
-
-    for log in logs:
-        # 解析时间
-        time_match = re.search(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', log)
-        if not time_match:
-            continue
-
-        log_time = datetime.strptime(time_match.group(1), '%Y-%m-%d %H:%M:%S')
-        if log_time < cutoff_time:
-            continue
-
-        # 统计信号
-        if 'BUY' in log:
-            signals['BUY'] += 1
-        elif 'SELL' in log:
-            signals['SELL'] += 1
-        elif 'HOLD' in log:
-            signals['HOLD'] += 1
-
-        # 统计错误和警告
-        if 'ERROR' in log:
-            errors += 1
-        elif 'WARNING' in log:
-            warnings += 1
-
-    # 输出报告
-    print(f"\n{'='*60}")
-    print(f"日志分析报告 (最近{hours}小时)")
-    print(f"{'='*60}")
-    print(f"交易信号: BUY={signals['BUY']}, SELL={signals['SELL']}, HOLD={signals['HOLD']}")
-    print(f"错误数量: {errors}")
-    print(f"警告数量: {warnings}")
-    print(f"{'='*60}\n")
-
-if __name__ == "__main__":
-    analyze_logs()
-```
-
-### 🔄 自动化运维
-
-#### 1. 定时备份
-
-```bash
-# 创建备份脚本 backup.sh
-#!/bin/bash
-
-BACKUP_DIR="/opt/backups/quant-bot"
-DATE=$(date +%Y%m%d_%H%M%S)
-
-# 创建备份目录
-mkdir -p $BACKUP_DIR
-
-# 备份数据库
-mysqldump -u futu_quant -p'your_password' futu_quant > \
-    $BACKUP_DIR/futu_quant_$DATE.sql
-
-# 备份配置文件
-cp /opt/quant-bot/.env $BACKUP_DIR/.env_$DATE
-
-# 压缩备份
-tar -czf $BACKUP_DIR/backup_$DATE.tar.gz \
-    $BACKUP_DIR/futu_quant_$DATE.sql \
-    $BACKUP_DIR/.env_$DATE
-
-# 清理旧备份 (保留7天)
-find $BACKUP_DIR -name "backup_*.tar.gz" -mtime +7 -delete
-
-# 清理临时文件
-rm $BACKUP_DIR/futu_quant_$DATE.sql
-rm $BACKUP_DIR/.env_$DATE
-
-echo "备份完成: backup_$DATE.tar.gz"
-```
-
-#### 2. 自动更新
-
-```bash
-# 创建更新脚本 update.sh
-#!/bin/bash
-
-echo "开始更新..."
-
-# 停止服务
-sudo systemctl stop quant-bot
-
-# 备份当前版本
-cp -r /opt/quant-bot /opt/quant-bot.backup.$(date +%Y%m%d)
-
-# 拉取最新代码
-cd /opt/quant-bot
-git fetch origin
-git pull origin main
-
-# 更新依赖
-source venv/bin/activate
-pip install -r requirements.txt --upgrade
-
-# 数据库迁移 (如果有)
-# python scripts/migrate_db.py
-
-# 重启服务
-sudo systemctl start quant-bot
-
-# 检查服务状态
-sleep 5
-if systemctl is-active --quiet quant-bot; then
-    echo "更新成功，服务正常运行"
-else
-    echo "更新失败，正在回滚..."
-    sudo systemctl stop quant-bot
-    rm -rf /opt/quant-bot
-    mv /opt/quant-bot.backup.$(date +%Y%m%d) /opt/quant-bot
-    sudo systemctl start quant-bot
-    echo "已回滚到之前版本"
-fi
-```
+1. **安装环境**: 安装 Python 3.12, MySQL 8.0。
+2. **FutuOpenD**: 确保 FutuOpenD 已启动并开启 API 访问。
+3. **部署代码**: `git clone` -> `pip install` -> `init_db.py`。
+4. **服务管理**: 使用 `systemd` 配置 `quant-bot.service` 实现自动重启。
 
 ---
 
 ## ❓ 常见问题
 
-### 🔧 环境配置问题
-
-#### Q1: Python版本不兼容
-
-**问题**: `SyntaxError: invalid syntax`
-
-**解决方案**:
-```bash
-# 检查Python版本
-python --version  # 需要 3.12+
-
-# 如果版本过低，安装新版本
-sudo apt install python3.12 python3.12-venv
-
-# 使用新版本创建虚拟环境
-python3.12 -m venv venv
-```
-
-#### Q2: 依赖包安装失败
-
-**问题**: `ERROR: Could not find a version that satisfies the requirement`
-
-**解决方案**:
-```bash
-# 升级pip
-pip install --upgrade pip
-
-# 使用国内镜像源
-pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
-
-# 单独安装失败的包
-pip install 包名 --no-cache-dir
-```
-
 ### 🔌 连接问题
 
-#### Q3: 富途API连接失败
+#### Q: 富途API连接失败 (ECONNREFUSED)
+**解决方案**: 检查 FutuOpenD 是否在 11111 端口运行，且是否已登录并开启了“允许 API 访问”。
 
-**问题**: `Connect fail: ECONNREFUSED`
+### 💰 资金管理问题
 
-**解决方案**:
-```bash
-# 1. 检查FutuOpenD是否运行
-ps aux | grep FutuOpenD
-
-# 2. 检查端口占用
-netstat -tuln | grep 11111
-
-# 3. 重启FutuOpenD
-# Windows: 重启FutuOpenD应用
-# Linux: sudo systemctl restart futuopend
-
-# 4. 检查防火墙
-sudo ufw status
-sudo ufw allow 11111/tcp
-```
-
-#### Q4: 数据库连接失败
-
-**问题**: `Can't connect to MySQL server`
-
-**解决方案**:
-```bash
-# 1. 检查MySQL服务状态
-sudo systemctl status mysql
-
-# 2. 启动MySQL服务
-sudo systemctl start mysql
-
-# 3. 检查数据库配置
-cat .env | grep DB_
-
-# 4. 测试连接
-mysql -h $DB_HOST -u $DB_USER -p$DB_PASSWORD $DB_NAME
-
-# 5. 检查用户权限
-sudo mysql -e "SELECT user, host FROM mysql.user WHERE user='futu_quant';"
-```
-
-### 📊 交易策略问题
-
-#### Q5: 没有生成交易信号
-
-**问题**: `signal_records` 表为空
-
-**原因**: 当前市场条件不符合交易策略要求
-
-**解决方案**:
-```sql
--- 查看最近的信号记录
-SELECT * FROM signal_records
-ORDER BY created_at DESC
-LIMIT 10;
-
--- 查看资产监控状态
-SELECT * FROM asset_monitor
-WHERE is_active = 1;
-
--- 手动触发策略分析
-python -c "
-from database.db import SessionLocal
-from database.models import KLineData, AssetMonitor
-from strategy.logic import generate_signals
-
-db = SessionLocal()
-asset = db.query(AssetMonitor).first()
-if asset:
-    data = db.query(KLineData).filter(
-        KLineData.code == asset.code
-    ).order_by(KLineData.time_key.desc()).limit(200).all()
-    # 分析数据...
-db.close()
-"
-```
-
-#### Q6: 回测结果不理想
-
-**问题**: 回测显示亏损或胜率低
-
-**解决方案**:
-```python
-# 1. 调整策略参数
-# 编辑 strategy/logic.py
-
-# 2. 优化止损止盈参数
-RSI_OVERSOLD = 30  # 降低阈值，减少买入信号
-RSI_OVERBOUGHT = 75  # 提高阈值，增加卖出信号
-
-# 3. 调整仓位管理
-POSITION_SIZE_FRAC = 0.2  # 降低单次仓位比例
-
-# 4. 增加过滤条件
-# 添加成交量过滤、趋势过滤等
-
-# 5. 重新回测
-python scripts/run_backtest.py HK.00700 --days 550
-```
-
-### 🚨 性能问题
-
-#### Q7: 系统响应缓慢
-
-**问题**: 实时监控延迟高
-
-**解决方案**:
-```bash
-# 1. 检查系统资源
-htop
-
-# 2. 优化数据库查询
-# 添加索引
-CREATE INDEX idx_code_time ON kline_data(code, time_key);
-CREATE INDEX idx_active ON asset_monitor(is_active);
-
-# 3. 启用批量写入优化
-python run_scheduler.py --batch-interval 3.0
-
-# 4. 清理日志文件
-find . -name "*.log" -mtime +7 -delete
-
-# 5. 增加系统资源
-# 升级服务器配置
-```
-
-#### Q8: 内存占用过高
-
-**问题**: `MemoryError` 或系统变慢
-
-**解决方案**:
-```bash
-# 1. 检查内存使用
-free -h
-
-# 2. 清理Python缓存
-find . -type d -name __pycache__ -exec rm -rf {} +
-
-# 3. 优化数据加载
-# 限制加载的数据量
-DATA_WINDOW_DAYS = 300  # 减少数据窗口
-
-# 4. 使用内存分析工具
-pip install memory_profiler
-python -m memory_profiler your_script.py
-
-# 5. 增加交换空间
-sudo fallocate -l 2G /swapfile
-sudo chmod 600 /swapfile
-sudo mkswap /swapfile
-sudo swapon /swapfile
-```
-
-### 🔐 安全问题
-
-#### Q9: 环境变量泄露
-
-**问题**: 敏感信息可能被提交到Git
-
-**解决方案**:
-```bash
-# 1. 确认.gitignore配置
-cat .gitignore | grep .env
-
-# 2. 如果已提交，从历史中移除
-git filter-branch --force --index-filter \
-  "git rm --cached --ignore-unmatch .env" \
-  --prune-empty --tag-name-filter cat -- --all
-
-# 3. 强制推送
-git push origin --force --all
-
-# 4. 清理本地缓存
-git for-each-ref --format='delete %(refname)' refs/original | git update-ref --stdin
-git reflog expire --expire=now --all
-git gc --prune=now --aggressive
-```
-
-#### Q10: 实盘交易风险
-
-**问题**: 担心实盘交易造成损失
-
-**解决方案**:
-```python
-# 1. 保持模拟交易模式
-# 在 main.py 中确认
-executor = OrderExecutor(db_session=db_session, futu_client=futu, simulate=True)
-
-# 2. 设置资金限制
-MAX_DAILY_LOSS = 1000  # 单日最大亏损金额
-
-# 3. 启用双重确认
-# 在 engine/executor.py 中添加确认逻辑
-def execute_trade(self, ...):
-    if not self.confirm_trade(action, code, quantity, price):
-        return None
-    # 执行交易...
-
-# 4. 设置告警通知
-# 当亏损达到阈值时发送通知
-if daily_loss >= MAX_DAILY_LOSS:
-    send_alert("达到单日最大亏损限制，停止交易")
-```
+#### Q: 为什么有现金但不买入新资产？
+**原因**: V2.5 引入了槽位管理。如果 `max_concurrent_assets` 已满，系统会为现有资产预留加仓资金，拒绝开新仓。请调整配置中的并发上限。
 
 ---
 
 ## 📚 技术文档
 
-### 🏗️ 项目结构
-
-```
-LLM-Finance/
-├── 📁 database/                   # 数据库模块
-│   ├── db.py                     # 数据库连接配置
-│   └── models.py                 # SQLAlchemy数据模型
-│
-├── 📁 data/                       # 数据采集模块
-│   └── futu_client.py            # 富途API客户端
-│
-├── 📁 engine/                     # 交易执行引擎
-│   ├── executor.py               # 订单执行器
-│   └── portfolio.py              # 组合管理器
-│
-├── 📁 strategy/                   # 交易策略模块
-│   ├── indicators.py             # 技术指标计算
-│   └── logic.py                  # 策略逻辑（个股+ETF）
-│
-├── 📁 scripts/                    # 工具脚本
-│   ├── init_db.py                # 数据库初始化
-│   ├── run_backtest.py           # 个股回测
-│   ├── run_etf_backtest.py       # ETF回测
-│   ├── visualizer.py             # K线图表生成
-│   └── backtest/                 # 回测策略
-│       ├── backtrader_strategy.py
-│       └── etf_grid_strategy.py
-│
-├── 📁 output/                     # 输出目录
-│   └── charts/                   # 生成的图表
-│
-├── 📄 main.py                     # 主程序入口
-├── 📄 run_scheduler.py            # 调度器入口
-├── 📄 realtime_monitor.py         # 实时监控入口
-├── 📄 requirements.txt            # 依赖配置
-├── 📄 .env                        # 环境变量
-├── 📄 .env.example                # 环境变量模板
-├── 📄 .gitignore                  # Git忽略文件
-└── 📄 README.md                   # 项目文档
-```
-
 ### 🗄️ 数据库设计
 
 #### 核心表结构
 
-```sql
--- K线数据表
-CREATE TABLE kline_data (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    user_id INT DEFAULT 1,
-    code VARCHAR(50) NOT NULL,
-    time_key DATETIME NOT NULL,
-    timeframe VARCHAR(10) DEFAULT '1d',
-    open_price FLOAT NOT NULL,
-    high_price FLOAT NOT NULL,
-    low_price FLOAT NOT NULL,
-    close_price FLOAT NOT NULL,
-    volume FLOAT NOT NULL,
-    turnover FLOAT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_code_time (code, time_key),
-    INDEX idx_timeframe (timeframe)
-);
-
--- 交易信号表
-CREATE TABLE signal_records (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    user_id INT DEFAULT 1,
-    code VARCHAR(50) NOT NULL,
-    action ENUM('BUY', 'SELL', 'HOLD') NOT NULL,
-    reason VARCHAR(500),
-    close_price FLOAT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_code_created (code, created_at)
-);
-
--- 交易记录表
-CREATE TABLE trade_records (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    user_id INT DEFAULT 1,
-    code VARCHAR(50) NOT NULL,
-    action ENUM('BUY', 'SELL') NOT NULL,
-    price FLOAT NOT NULL,
-    quantity FLOAT NOT NULL,
-    order_id VARCHAR(100),
-    status VARCHAR(50) DEFAULT 'SUBMITTED',
-    reason VARCHAR(500),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- 用户钱包表
-CREATE TABLE user_wallets (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    user_id INT DEFAULT 1,
-    market_type ENUM('A_SHARE', 'HK_SHARE') NOT NULL,
-    balance FLOAT NOT NULL DEFAULT 0.0,
-    currency VARCHAR(10) NOT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
-
--- 持仓表
-CREATE TABLE holdings (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    user_id INT DEFAULT 1,
-    code VARCHAR(50) NOT NULL,
-    quantity FLOAT NOT NULL DEFAULT 0.0,
-    sellable_quantity FLOAT NOT NULL DEFAULT 0.0,
-    avg_cost FLOAT NOT NULL DEFAULT 0.0,
-    market_type ENUM('A_SHARE', 'HK_SHARE') NOT NULL,
-    tranches_count INT DEFAULT 0,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_user_code (user_id, code)
-);
-
--- 资产监控表
-CREATE TABLE asset_monitor (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    user_id INT DEFAULT 1,
-    code VARCHAR(50) NOT NULL,
-    market_type ENUM('A_SHARE', 'HK_SHARE') NOT NULL,
-    is_active INT DEFAULT 1,
-    is_etf INT DEFAULT 0,
-    last_price FLOAT,
-    last_updated DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_user_code (user_id, code),
-    INDEX idx_active (is_active)
-);
-```
-
-### ⚙️ 配置参数
-
-#### 全局配置 (main.py)
-
-```python
-# 数据窗口配置
-DATA_WINDOW_DAYS = 550        # 历史数据天数
-POSITION_SIZE_FRAC = 0.25     # 单次买入仓位比例
-
-# 性能优化配置
-BATCH_WRITE_INTERVAL = 5.0     # 批量写入间隔(秒)
-CACHE_SIZE = 100               # 缓存资产数量
-```
-
-#### 策略配置 (strategy/logic.py)
-
-```python
-# 个股策略参数
-RSI_OVERSOLD = 35             # RSI超卖阈值
-RSI_OVERBOUGHT = 70           # RSI超买阈值
-BOLL_TOUCH_PCT = 0.01         # 布林带触及阈值
-ADX_THRESHOLD = 25            # 趋势强度阈值
-
-# ETF策略参数
-RSI_EXTREME_OVERSOLD = 25     # ETF极度超卖阈值
-GRID_DROP_PCT = 0.03          # 网格加仓间距
-TAKE_PROFIT_PCT = 0.04        # 整体止盈目标
-MAX_TRANCHES = 4              # 最大建仓批次
-TRANCHE_RATIOS = [0.2, 0.2, 0.3, 0.3]  # 建仓比例
-
-# 实时监控参数
-HARD_STOP_LOSS = -0.08        # 硬止损阈值
-HARD_TAKE_PROFIT = 0.15       # 硬止盈阈值
-UPDATE_INTERVAL = 60          # 状态刷新间隔(秒)
-```
-
-### 🔌 API接口文档
-
-#### 富途OpenAPI主要接口
-
-```python
-from futu import *
-
-# 1. 行情订阅
-quote_ctx = OpenQuoteContext(host='127.0.0.1', port=11111)
-ret, data = quote_ctx.subscribe(
-    codes=['HK.00700', 'SZ.159915'],
-    sub_types=[SubType.QUOTE],
-    subscribe_push=True
-)
-
-# 2. K线数据获取
-ret, data = quote_ctx.get_history_kline(
-    code='HK.00700',
-    start='2024-01-01',
-    end='2024-12-31',
-    ktype=KLType.K_60M,  # 60分钟K线
-    autype=AuType.QFQ    # 前复权
-)
-
-# 3. 实时报价处理
-class QuoteHandler(StockQuoteHandlerBase):
-    def on_recv_rsp(self, rsp_pb):
-        ret_code, data = super(QuoteHandler, self).on_recv_rsp(rsp_pb)
-        if ret_code == RET_OK:
-            # 处理实时报价数据
-            for _, row in data.iterrows():
-                code = row['code']
-                price = row['last_price']
-                # 处理逻辑...
-        return RET_OK, data
-
-quote_ctx.set_handler(QuoteHandler())
-quote_ctx.start()
-```
-
-#### 订单执行接口
-
-```python
-from engine.executor import OrderExecutor
-
-# 创建执行器
-executor = OrderExecutor(
-    db_session=db_session,
-    futu_client=futu_client,
-    simulate=True  # 模拟交易模式
-)
-
-# 执行买入
-trade_record = executor.execute_trade(
-    user_id=1,
-    code='HK.00700',
-    action=TradeAction.BUY,
-    price=300.0,
-    quantity=100,
-    reason="RSI超卖买入信号"
-)
-
-# 执行卖出
-trade_record = executor.execute_trade(
-    user_id=1,
-    code='HK.00700',
-    action=TradeAction.SELL,
-    price=320.0,
-    quantity=50,
-    reason="触及止盈目标"
-)
-```
-
-#### FastAPI 回测生成接口
-
-内置了基于 `FastAPI` 的高性能 Web 端接口服务器 (`api_server.py`)，它已无缝集成在 `run_scheduler.py` 调度器内，随主程序启动即可访问。
-
-```bash
-# 默认监听端口
-# http://0.0.0.0:8069
-```
-
-> ⚠️ **重要**：回测耗时较长（数据拉取 + 计算 + 上传），因此接口设计为**异步任务队列模式**。
-> 提交后立即返回 `job_id`，需通过轮询接口查询最终结果。
-
-**Step 1 — 提交回测任务（立即返回，不阻塞）**:
-```bash
-curl -X POST "http://127.0.0.1:8069/api/backtest" \
-     -H "Content-Type: application/json" \
-     -d '{
-           "code": "SZ.159915",
-           "days": 365,
-           "cash": 100000.0,
-           "strategy": "etf",
-           "user_id": 1
-         }'
-```
-
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `code` | string | 资产代码，如 `SZ.159915`、`HK.02800` |
-| `days` | int | 回测天数，默认 `365` |
-| `cash` | float | 初始资金，默认 `100000.0` |
-| `strategy` | string | `"etf"` 或 `"standard"` 或 `"leveraged"` |
-| `user_id` | int | 用户 ID，默认 `1` |
-
-立即返回（HTTP 202）:
-```json
-{
-    "job_id": "abc12345-...",
-    "status": "pending",
-    "message": "Backtest job submitted. Poll /api/backtest/{job_id} for status.",
-    "poll_url": "/api/backtest/abc12345-..."
-}
-```
-
-**Step 2 — 轮询任务状态（每隔数秒查询一次）**:
-```bash
-curl "http://127.0.0.1:8069/api/backtest/{job_id}"
-```
-
-任务运行中:
-```json
-{ "job_id": "abc12345-...", "status": "running", "code": "SZ.159915" }
-```
-
-任务完成:
-```json
-{
-    "job_id": "abc12345-...",
-    "status": "done",
-    "record_id": 1,
-    "oss_url": "https://ark-auto-....volces.com/data/uploads/SZ.159915_xxx.png",
-    "message": "Backtest completed and plot uploaded successfully."
-}
-```
-
-任务失败:
-```json
-{ "job_id": "abc12345-...", "status": "error", "detail": "具体错误信息..." }
-```
-
-**其他接口**:
-```bash
-# 健康检查（确认 FutuOpenD 连接状态）
-curl http://127.0.0.1:8069/health
-
-# 查看所有任务列表
-curl http://127.0.0.1:8069/api/backtest
-```
+- `user_wallets`: 全球钱包，支持 A股/港股 分离。
+- `holdings`: 持仓表，V2.5 新增 `last_price` 实时同步。
+- `asset_monitor`: 监控标的，新增 `board_lot` 缓存。
+- `signal_records`: 历史分析信号记录。
+- `trade_records`: 真实/模拟交易订单历史。
 
 ---
 
 ## 📞 技术支持
 
-### 🆘 获取帮助
-
 - **GitHub Issues**: [提交问题](https://github.com/your-repo/LLM-Finance/issues)
 - **邮件支持**: 13113288579@163.com
-- **文档中心**: [完整文档](https://your-repo.github.io/LLM-Finance/)
-
-### 🤝 贡献指南
-
-欢迎贡献代码、报告问题或提出建议！
-
-1. Fork 本项目
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
-
-### 📄 许可证
-
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
-
----
-
-## 🙏 致谢
-
-感谢以下开源项目和社区：
-
-- [Futu OpenAPI](https://openapi.futunn.com/) - 富途开放平台
-- [Backtrader](https://www.backtrader.com/) - 回测框架
-- [pandas-ta](https://github.com/twopirllc/pandas-ta) - 技术分析库
-- [SQLAlchemy](https://www.sqlalchemy.org/) - Python SQL工具包
 
 ---
 
 ## 📈 版本历史
 
-### v2.3.0 (2026-03-21) - 🛡️ 全局风控与实时优化
-- 🏗️ **全局总仓位控制**: 引入 `max_total_exposure_pct` (90%)，强制预留 10% 现金流动性。
-- 📈 **实时最高价同步**: 实时行情监控现在会同步更新 `highest_price`，使追踪止盈更精准。
-- 🔄 **持仓自动晋升**: 网格持仓在进入强势趋势后自动升级为趋势持仓，启用高频追踪。
+### v2.5.0 (2026-03-23) - 💎 预算管理与并发革命
+- 🏗️ **预算槽位管理**: 引入 `PortfolioManager` Slotting 机制，解决小资金下的加仓冲突。
+- 🔒 **全局交易锁**: 增加 `GlobalTradeLock`，确保多线程下余额更新的原子性。
+- 📊 **持仓实时价**: `holdings` 表每 5 秒同步最新市价与 P&L。
+- 📅 **2026 节假日**: 更新 A股/港股 2026 完整休市日历。
 
-### v2.2.0 (2026-03-20) - 🌪️ 策略与接口性能升级
-
-- 🎯 **策略 V2.1 增强**: 引入 SMA 20/60/120 趋势再入场机制，彻底解决牛市「踏空」问题。
-- 🛡️ **冲突抑制系统**: 联动核心逻辑层，增加买卖信号互斥检测，过滤波动噪音。
-- ⚡ **异步回测 V2**: 采用 FastAPI Job Queue 模式，支持长耗时回测任务及状态轮询。
-- 🔍 **系统健康检查**: 新增 `/health` 接口，一键监控 FutuOpenD 及 OSS 连接状态。
-- 🐛 **库兼容性修复**: 完成对 SQLAlchemy 2.0+ 和 Pandas 2.0+ 的全量驱动级兼容适配。
-
-### v2.0.0 (2026-03-19) - 🚀 重大更新
-
-- ✨ 新增批量写入优化，支持100+资产并发监控
-- 🎯 优化双轨制策略，提升交易胜率
-- ⚡ 集成实时监控到调度器，简化部署
-- 🔒 增强安全配置，完善生产环境部署
-- 📊 重构文档结构，提升用户体验
+### v2.4.0 (2026-03-21) - 🛡️ 全局风控与实时优化
+- 🏗️ **全局总仓位控制**: 引入 `max_total_exposure_pct` (90%)。
+- 📈 **实时最高价同步**: 行情监控同步更新 `highest_price`。
+- 🔄 **三轨制路由**: 完善杠杆 ETF 专属策略分发。
 
 ### v1.0.0 (2026-01-01) - 🎉 初始版本
-
-- 🎉 首次公开发布
-- 📈 支持A股/港股双市场交易
-- 🧠 实现双轨制交易策略
-- ⚡ 集成实时风控系统
-- 🤖 自动化调度功能
+- 🎉 首次公开发布，支持 A股/港股 基础交易逻辑。
 
 ---
 
 <div align="center">
 
-**[⬆ 回到顶部](#-富途量化交易机器人-v210-专业级a股港股智能交易系统)**
-
-**如果这个项目对您有帮助，请给个⭐️支持一下！**
+**[⬆ 回到顶部](#保护伞量化交易机器人-v250-专业级a股港股智能交易系统)**
 
 Made with ❤️ by NASASKY Quant Team
 

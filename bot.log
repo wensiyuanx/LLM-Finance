@@ -1411,3 +1411,770 @@ sqlalchemy.exc.OperationalError: (pymysql.err.OperationalError) (1054, "Unknown 
 2026-03-23 12:30:11,358 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
 2026-03-23 12:31:11,780 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 4 for ATR stop-loss. Cache size: 57
 2026-03-23 12:31:11,880 [INFO    ] scheduler — [RealTime Stats] Updates: 57, Batch writes: 1, Pending: 0, Cache: 57
+2026-03-23 15:15:45,022 [INFO    ] scheduler — ============================================================
+2026-03-23 15:15:45,023 [INFO    ] scheduler — Starting enhanced scheduler with real-time monitoring and batch writing...
+2026-03-23 15:15:45,023 [INFO    ] scheduler — Batch write interval: 5.0s
+2026-03-23 15:15:45,023 [INFO    ] scheduler — ============================================================
+2026-03-23 15:15:45,023 [INFO    ] scheduler — [RealTime] Initializing Real-Time Market Monitor Thread with batch writing...
+2026-03-23 15:15:45,023 [INFO    ] scheduler — [RealTime] Real-time monitor thread started successfully.
+2026-03-23 15:15:45,025 [INFO    ] scheduler — ============================================================
+2026-03-23 15:15:45,025 [INFO    ] scheduler — Scheduler configured:
+2026-03-23 15:15:45,025 [INFO    ] scheduler —   - Real-time monitoring: ACTIVE (background thread)
+2026-03-23 15:15:45,026 [INFO    ] scheduler —   - API Server: ACTIVE (127.0.0.1:8069 background thread)
+2026-03-23 15:15:45,026 [INFO    ] scheduler —   - A-Share analysis: 10:00, 11:20, 14:00, 14:40
+2026-03-23 15:15:45,026 [INFO    ] scheduler —   - HK-Share analysis: 10:30, 11:30, 14:30, 15:30
+2026-03-23 15:15:45,027 [INFO    ] scheduler —   - T+1 rollover: 08:55
+2026-03-23 15:15:45,027 [INFO    ] scheduler —   - Holiday checking: ENABLED (skips trading on holidays)
+2026-03-23 15:15:45,027 [INFO    ] scheduler —   - Execution time monitoring: ENABLED
+2026-03-23 15:15:45,027 [INFO    ] scheduler — ============================================================
+2026-03-23 15:15:45,027 [INFO    ] scheduler — Press Ctrl+C to stop.
+2026-03-23 15:15:45,027 [INFO    ] scheduler — Force-run mode enabled. Bypassing market open checks for initial analysis...
+2026-03-23 15:15:45,027 [INFO    ] scheduler — Running initial A-Share analysis...
+2026-03-23 15:15:45,027 [INFO    ] scheduler — === A-Share Market Job Started ===
+2026-03-23 15:15:45,125 [INFO    ] scheduler — [RealTime] Connected to FutuOpenD Quote Context for real-time monitoring.
+2026-03-23 15:15:45,291 [INFO    ] scheduler — [API Server] Starting FastAPI on 0.0.0.0:8069
+2026-03-23 15:15:45,828 [INFO    ] config — Configuration loaded from /Users/wensiyuan/mycode/LLM-Finance/config.yaml
+2026-03-23 15:15:46,168 [INFO    ] config — Configuration refreshed with 0 database overrides.
+2026-03-23 15:15:46,264 [INFO    ] main — Trading bot started | filter: ['A_SHARE'] (Config Hot-Reloaded).
+2026-03-23 15:15:46,367 [ERROR   ] scheduler — A-Share job failed: the greenlet library is required to use this function. No module named 'greenlet'
+Traceback (most recent call last):
+  File "/Users/wensiyuan/mycode/LLM-Finance/main.py", line 363, in run_trading_bot
+    result = await db_session.execute(stmt)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 449, in execute
+    result = await greenlet_spawn(
+                   ^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/util/concurrency.py", line 101, in greenlet_spawn
+    _not_implemented()
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/util/concurrency.py", line 81, in _not_implemented
+    raise ValueError(
+ValueError: the greenlet library is required to use this function. No module named 'greenlet'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/wensiyuan/mycode/LLM-Finance/main.py", line 554, in run_trading_bot
+    await db_session.rollback()
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 990, in rollback
+    await greenlet_spawn(self.sync_session.rollback)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/util/concurrency.py", line 101, in greenlet_spawn
+    _not_implemented()
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/util/concurrency.py", line 81, in _not_implemented
+    raise ValueError(
+ValueError: the greenlet library is required to use this function. No module named 'greenlet'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/wensiyuan/mycode/LLM-Finance/run_scheduler.py", line 69, in job_a_share
+    asyncio.run(run_trading_bot(market_filter=[MarketType.A_SHARE], force=force))
+  File "/opt/homebrew/Cellar/python@3.12/3.12.12/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.12/3.12.12/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.12/3.12.12/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/Users/wensiyuan/mycode/LLM-Finance/main.py", line 348, in run_trading_bot
+    async with AsyncSessionLocal() as db_session:
+               ^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 1071, in __aexit__
+    await asyncio.shield(task)
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 1016, in close
+    await greenlet_spawn(self.sync_session.close)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/util/concurrency.py", line 101, in greenlet_spawn
+    _not_implemented()
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/util/concurrency.py", line 81, in _not_implemented
+    raise ValueError(
+ValueError: the greenlet library is required to use this function. No module named 'greenlet'
+2026-03-23 15:15:46,379 [INFO    ] scheduler — === A-Share Market Job Finished (Elapsed: 1.4s) ===
+2026-03-23 15:15:46,379 [INFO    ] scheduler — Running initial HK-Share analysis...
+2026-03-23 15:15:46,379 [INFO    ] scheduler — === HK-Share Market Job Started ===
+2026-03-23 15:15:46,462 [ERROR   ] scheduler — [RealTime] Failed to refresh state: (pymysql.err.OperationalError) (1054, "Unknown column 'holdings.last_price' in 'field list'")
+[SQL: SELECT holdings.id AS holdings_id, holdings.user_id AS holdings_user_id, holdings.code AS holdings_code, holdings.quantity AS holdings_quantity, holdings.sellable_quantity AS holdings_sellable_quantity, holdings.avg_cost AS holdings_avg_cost, holdings.market_type AS holdings_market_type, holdings.tranches_count AS holdings_tranches_count, holdings.is_trend AS holdings_is_trend, holdings.last_price AS holdings_last_price, holdings.highest_price AS holdings_highest_price, holdings.updated_at AS holdings_updated_at, holdings.created_at AS holdings_created_at 
+FROM holdings 
+WHERE holdings.quantity > %(quantity_1)s]
+[parameters: {'quantity_1': 0}]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-03-23 15:15:46,558 [INFO    ] scheduler — [Batch Writer] Started with interval: 5.0s
+2026-03-23 15:15:46,558 [INFO    ] scheduler — [Batch Writer] Background thread started
+2026-03-23 15:15:46,558 [INFO    ] scheduler — [RealTime] No active assets to monitor. Still running in background...
+2026-03-23 15:15:47,155 [INFO    ] config — Configuration loaded from /Users/wensiyuan/mycode/LLM-Finance/config.yaml
+2026-03-23 15:15:47,501 [INFO    ] config — Configuration refreshed with 0 database overrides.
+2026-03-23 15:15:47,600 [INFO    ] main — Trading bot started | filter: ['HK_SHARE'] (Config Hot-Reloaded).
+2026-03-23 15:15:47,697 [ERROR   ] scheduler — HK-Share job failed: the greenlet library is required to use this function. No module named 'greenlet'
+Traceback (most recent call last):
+  File "/Users/wensiyuan/mycode/LLM-Finance/main.py", line 363, in run_trading_bot
+    result = await db_session.execute(stmt)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 449, in execute
+    result = await greenlet_spawn(
+                   ^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/util/concurrency.py", line 101, in greenlet_spawn
+    _not_implemented()
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/util/concurrency.py", line 81, in _not_implemented
+    raise ValueError(
+ValueError: the greenlet library is required to use this function. No module named 'greenlet'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/wensiyuan/mycode/LLM-Finance/main.py", line 554, in run_trading_bot
+    await db_session.rollback()
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 990, in rollback
+    await greenlet_spawn(self.sync_session.rollback)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/util/concurrency.py", line 101, in greenlet_spawn
+    _not_implemented()
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/util/concurrency.py", line 81, in _not_implemented
+    raise ValueError(
+ValueError: the greenlet library is required to use this function. No module named 'greenlet'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/wensiyuan/mycode/LLM-Finance/run_scheduler.py", line 86, in job_hk_share
+    asyncio.run(run_trading_bot(market_filter=[MarketType.HK_SHARE], force=force))
+  File "/opt/homebrew/Cellar/python@3.12/3.12.12/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.12/3.12.12/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.12/3.12.12/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/Users/wensiyuan/mycode/LLM-Finance/main.py", line 348, in run_trading_bot
+    async with AsyncSessionLocal() as db_session:
+               ^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 1071, in __aexit__
+    await asyncio.shield(task)
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 1016, in close
+    await greenlet_spawn(self.sync_session.close)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/util/concurrency.py", line 101, in greenlet_spawn
+    _not_implemented()
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/util/concurrency.py", line 81, in _not_implemented
+    raise ValueError(
+ValueError: the greenlet library is required to use this function. No module named 'greenlet'
+2026-03-23 15:15:47,698 [INFO    ] scheduler — === HK-Share Market Job Finished (Elapsed: 1.3s) ===
+2026-03-23 15:16:36,070 [INFO    ] scheduler — ============================================================
+2026-03-23 15:16:36,070 [INFO    ] scheduler — Starting enhanced scheduler with real-time monitoring and batch writing...
+2026-03-23 15:16:36,070 [INFO    ] scheduler — Batch write interval: 5.0s
+2026-03-23 15:16:36,070 [INFO    ] scheduler — ============================================================
+2026-03-23 15:16:36,071 [INFO    ] scheduler — [RealTime] Initializing Real-Time Market Monitor Thread with batch writing...
+2026-03-23 15:16:36,071 [INFO    ] scheduler — [RealTime] Real-time monitor thread started successfully.
+2026-03-23 15:16:36,072 [INFO    ] scheduler — ============================================================
+2026-03-23 15:16:36,073 [INFO    ] scheduler — Scheduler configured:
+2026-03-23 15:16:36,073 [INFO    ] scheduler —   - Real-time monitoring: ACTIVE (background thread)
+2026-03-23 15:16:36,073 [INFO    ] scheduler —   - API Server: ACTIVE (127.0.0.1:8069 background thread)
+2026-03-23 15:16:36,073 [INFO    ] scheduler —   - A-Share analysis: 10:00, 11:20, 14:00, 14:40
+2026-03-23 15:16:36,073 [INFO    ] scheduler —   - HK-Share analysis: 10:30, 11:30, 14:30, 15:30
+2026-03-23 15:16:36,073 [INFO    ] scheduler —   - T+1 rollover: 08:55
+2026-03-23 15:16:36,073 [INFO    ] scheduler —   - Holiday checking: ENABLED (skips trading on holidays)
+2026-03-23 15:16:36,074 [INFO    ] scheduler —   - Execution time monitoring: ENABLED
+2026-03-23 15:16:36,074 [INFO    ] scheduler — ============================================================
+2026-03-23 15:16:36,074 [INFO    ] scheduler — Press Ctrl+C to stop.
+2026-03-23 15:16:36,074 [INFO    ] scheduler — Force-run mode enabled. Bypassing market open checks for initial analysis...
+2026-03-23 15:16:36,074 [INFO    ] scheduler — Running initial A-Share analysis...
+2026-03-23 15:16:36,075 [INFO    ] scheduler — === A-Share Market Job Started ===
+2026-03-23 15:16:36,196 [INFO    ] scheduler — [RealTime] Connected to FutuOpenD Quote Context for real-time monitoring.
+2026-03-23 15:16:36,288 [INFO    ] scheduler — [API Server] Starting FastAPI on 0.0.0.0:8069
+2026-03-23 15:16:36,564 [ERROR   ] scheduler — [RealTime] Failed to refresh state: (pymysql.err.OperationalError) (1054, "Unknown column 'holdings.last_price' in 'field list'")
+[SQL: SELECT holdings.id AS holdings_id, holdings.user_id AS holdings_user_id, holdings.code AS holdings_code, holdings.quantity AS holdings_quantity, holdings.sellable_quantity AS holdings_sellable_quantity, holdings.avg_cost AS holdings_avg_cost, holdings.market_type AS holdings_market_type, holdings.tranches_count AS holdings_tranches_count, holdings.is_trend AS holdings_is_trend, holdings.last_price AS holdings_last_price, holdings.highest_price AS holdings_highest_price, holdings.updated_at AS holdings_updated_at, holdings.created_at AS holdings_created_at 
+FROM holdings 
+WHERE holdings.quantity > %(quantity_1)s]
+[parameters: {'quantity_1': 0}]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-03-23 15:16:36,661 [INFO    ] scheduler — [Batch Writer] Started with interval: 5.0s
+2026-03-23 15:16:36,661 [INFO    ] scheduler — [Batch Writer] Background thread started
+2026-03-23 15:16:36,662 [INFO    ] scheduler — [RealTime] No active assets to monitor. Still running in background...
+2026-03-23 15:16:36,861 [INFO    ] config — Configuration loaded from /Users/wensiyuan/mycode/LLM-Finance/config.yaml
+2026-03-23 15:16:37,213 [INFO    ] config — Configuration refreshed with 0 database overrides.
+2026-03-23 15:16:37,314 [INFO    ] main — Trading bot started | filter: ['A_SHARE'] (Config Hot-Reloaded).
+2026-03-23 15:16:38,122 [ERROR   ] main — Trading bot error: (pymysql.err.OperationalError) (1054, "Unknown column 'asset_monitor.board_lot' in 'field list'")
+[SQL: SELECT asset_monitor.id, asset_monitor.user_id, asset_monitor.code, asset_monitor.market_type, asset_monitor.is_active, asset_monitor.is_etf, asset_monitor.is_leveraged, asset_monitor.last_price, asset_monitor.last_updated, asset_monitor.board_lot, asset_monitor.created_at 
+FROM asset_monitor 
+WHERE asset_monitor.is_active = %s AND asset_monitor.market_type IN (%s)]
+[parameters: (1, 'A_SHARE')]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+Traceback (most recent call last):
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 230, in execute
+    self._adapt_connection._handle_exception(error)
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 368, in _handle_exception
+    raise error.with_traceback(exc_info[2])
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 228, in execute
+    return self.await_(self._execute_async(operation, parameters))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 251, in _execute_async
+    result = await self._cursor.execute(operation, parameters)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wensiyuan/Library/Python/3.12/lib/python/site-packages/aiomysql/cursors.py", line 239, in execute
+    await self._query(query)
+  File "/Users/wensiyuan/Library/Python/3.12/lib/python/site-packages/aiomysql/cursors.py", line 457, in _query
+    await conn.query(q)
+  File "/Users/wensiyuan/Library/Python/3.12/lib/python/site-packages/aiomysql/connection.py", line 469, in query
+    await self._read_query_result(unbuffered=unbuffered)
+  File "/Users/wensiyuan/Library/Python/3.12/lib/python/site-packages/aiomysql/connection.py", line 683, in _read_query_result
+    await result.read()
+  File "/Users/wensiyuan/Library/Python/3.12/lib/python/site-packages/aiomysql/connection.py", line 1164, in read
+    first_packet = await self.connection._read_packet()
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wensiyuan/Library/Python/3.12/lib/python/site-packages/aiomysql/connection.py", line 652, in _read_packet
+    packet.raise_for_error()
+  File "/opt/homebrew/lib/python3.12/site-packages/pymysql/protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "/opt/homebrew/lib/python3.12/site-packages/pymysql/err.py", line 150, in raise_mysql_exception
+    raise errorclass(errno, errval)
+pymysql.err.OperationalError: (1054, "Unknown column 'asset_monitor.board_lot' in 'field list'")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/wensiyuan/mycode/LLM-Finance/main.py", line 363, in run_trading_bot
+    result = await db_session.execute(stmt)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 449, in execute
+    result = await greenlet_spawn(
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 203, in greenlet_spawn
+    result = context.switch(value)
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2351, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2249, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/orm/context.py", line 306, in orm_execute_statement
+    result = conn.execute(
+             ^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+           ^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 230, in execute
+    self._adapt_connection._handle_exception(error)
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 368, in _handle_exception
+    raise error.with_traceback(exc_info[2])
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 228, in execute
+    return self.await_(self._execute_async(operation, parameters))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 251, in _execute_async
+    result = await self._cursor.execute(operation, parameters)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wensiyuan/Library/Python/3.12/lib/python/site-packages/aiomysql/cursors.py", line 239, in execute
+    await self._query(query)
+  File "/Users/wensiyuan/Library/Python/3.12/lib/python/site-packages/aiomysql/cursors.py", line 457, in _query
+    await conn.query(q)
+  File "/Users/wensiyuan/Library/Python/3.12/lib/python/site-packages/aiomysql/connection.py", line 469, in query
+    await self._read_query_result(unbuffered=unbuffered)
+  File "/Users/wensiyuan/Library/Python/3.12/lib/python/site-packages/aiomysql/connection.py", line 683, in _read_query_result
+    await result.read()
+  File "/Users/wensiyuan/Library/Python/3.12/lib/python/site-packages/aiomysql/connection.py", line 1164, in read
+    first_packet = await self.connection._read_packet()
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wensiyuan/Library/Python/3.12/lib/python/site-packages/aiomysql/connection.py", line 652, in _read_packet
+    packet.raise_for_error()
+  File "/opt/homebrew/lib/python3.12/site-packages/pymysql/protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "/opt/homebrew/lib/python3.12/site-packages/pymysql/err.py", line 150, in raise_mysql_exception
+    raise errorclass(errno, errval)
+sqlalchemy.exc.OperationalError: (pymysql.err.OperationalError) (1054, "Unknown column 'asset_monitor.board_lot' in 'field list'")
+[SQL: SELECT asset_monitor.id, asset_monitor.user_id, asset_monitor.code, asset_monitor.market_type, asset_monitor.is_active, asset_monitor.is_etf, asset_monitor.is_leveraged, asset_monitor.last_price, asset_monitor.last_updated, asset_monitor.board_lot, asset_monitor.created_at 
+FROM asset_monitor 
+WHERE asset_monitor.is_active = %s AND asset_monitor.market_type IN (%s)]
+[parameters: (1, 'A_SHARE')]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-03-23 15:16:38,143 [INFO    ] scheduler — === A-Share Market Job Finished (Elapsed: 2.1s) ===
+2026-03-23 15:16:38,143 [INFO    ] scheduler — Running initial HK-Share analysis...
+2026-03-23 15:16:38,143 [INFO    ] scheduler — === HK-Share Market Job Started ===
+2026-03-23 15:16:38,921 [INFO    ] config — Configuration loaded from /Users/wensiyuan/mycode/LLM-Finance/config.yaml
+2026-03-23 15:16:39,317 [INFO    ] config — Configuration refreshed with 0 database overrides.
+2026-03-23 15:16:39,413 [INFO    ] main — Trading bot started | filter: ['HK_SHARE'] (Config Hot-Reloaded).
+2026-03-23 15:16:39,907 [ERROR   ] main — Trading bot error: (pymysql.err.OperationalError) (1054, "Unknown column 'asset_monitor.board_lot' in 'field list'")
+[SQL: SELECT asset_monitor.id, asset_monitor.user_id, asset_monitor.code, asset_monitor.market_type, asset_monitor.is_active, asset_monitor.is_etf, asset_monitor.is_leveraged, asset_monitor.last_price, asset_monitor.last_updated, asset_monitor.board_lot, asset_monitor.created_at 
+FROM asset_monitor 
+WHERE asset_monitor.is_active = %s AND asset_monitor.market_type IN (%s)]
+[parameters: (1, 'HK_SHARE')]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+Traceback (most recent call last):
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 230, in execute
+    self._adapt_connection._handle_exception(error)
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 368, in _handle_exception
+    raise error.with_traceback(exc_info[2])
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 228, in execute
+    return self.await_(self._execute_async(operation, parameters))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 251, in _execute_async
+    result = await self._cursor.execute(operation, parameters)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wensiyuan/Library/Python/3.12/lib/python/site-packages/aiomysql/cursors.py", line 239, in execute
+    await self._query(query)
+  File "/Users/wensiyuan/Library/Python/3.12/lib/python/site-packages/aiomysql/cursors.py", line 457, in _query
+    await conn.query(q)
+  File "/Users/wensiyuan/Library/Python/3.12/lib/python/site-packages/aiomysql/connection.py", line 469, in query
+    await self._read_query_result(unbuffered=unbuffered)
+  File "/Users/wensiyuan/Library/Python/3.12/lib/python/site-packages/aiomysql/connection.py", line 683, in _read_query_result
+    await result.read()
+  File "/Users/wensiyuan/Library/Python/3.12/lib/python/site-packages/aiomysql/connection.py", line 1164, in read
+    first_packet = await self.connection._read_packet()
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wensiyuan/Library/Python/3.12/lib/python/site-packages/aiomysql/connection.py", line 652, in _read_packet
+    packet.raise_for_error()
+  File "/opt/homebrew/lib/python3.12/site-packages/pymysql/protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "/opt/homebrew/lib/python3.12/site-packages/pymysql/err.py", line 150, in raise_mysql_exception
+    raise errorclass(errno, errval)
+pymysql.err.OperationalError: (1054, "Unknown column 'asset_monitor.board_lot' in 'field list'")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/wensiyuan/mycode/LLM-Finance/main.py", line 363, in run_trading_bot
+    result = await db_session.execute(stmt)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 449, in execute
+    result = await greenlet_spawn(
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 203, in greenlet_spawn
+    result = context.switch(value)
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2351, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2249, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/orm/context.py", line 306, in orm_execute_statement
+    result = conn.execute(
+             ^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+           ^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 230, in execute
+    self._adapt_connection._handle_exception(error)
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 368, in _handle_exception
+    raise error.with_traceback(exc_info[2])
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 228, in execute
+    return self.await_(self._execute_async(operation, parameters))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 251, in _execute_async
+    result = await self._cursor.execute(operation, parameters)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wensiyuan/Library/Python/3.12/lib/python/site-packages/aiomysql/cursors.py", line 239, in execute
+    await self._query(query)
+  File "/Users/wensiyuan/Library/Python/3.12/lib/python/site-packages/aiomysql/cursors.py", line 457, in _query
+    await conn.query(q)
+  File "/Users/wensiyuan/Library/Python/3.12/lib/python/site-packages/aiomysql/connection.py", line 469, in query
+    await self._read_query_result(unbuffered=unbuffered)
+  File "/Users/wensiyuan/Library/Python/3.12/lib/python/site-packages/aiomysql/connection.py", line 683, in _read_query_result
+    await result.read()
+  File "/Users/wensiyuan/Library/Python/3.12/lib/python/site-packages/aiomysql/connection.py", line 1164, in read
+    first_packet = await self.connection._read_packet()
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wensiyuan/Library/Python/3.12/lib/python/site-packages/aiomysql/connection.py", line 652, in _read_packet
+    packet.raise_for_error()
+  File "/opt/homebrew/lib/python3.12/site-packages/pymysql/protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "/opt/homebrew/lib/python3.12/site-packages/pymysql/err.py", line 150, in raise_mysql_exception
+    raise errorclass(errno, errval)
+sqlalchemy.exc.OperationalError: (pymysql.err.OperationalError) (1054, "Unknown column 'asset_monitor.board_lot' in 'field list'")
+[SQL: SELECT asset_monitor.id, asset_monitor.user_id, asset_monitor.code, asset_monitor.market_type, asset_monitor.is_active, asset_monitor.is_etf, asset_monitor.is_leveraged, asset_monitor.last_price, asset_monitor.last_updated, asset_monitor.board_lot, asset_monitor.created_at 
+FROM asset_monitor 
+WHERE asset_monitor.is_active = %s AND asset_monitor.market_type IN (%s)]
+[parameters: (1, 'HK_SHARE')]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-03-23 15:16:39,911 [INFO    ] scheduler — === HK-Share Market Job Finished (Elapsed: 1.8s) ===
+2026-03-23 15:17:15,128 [INFO    ] scheduler — ============================================================
+2026-03-23 15:17:15,128 [INFO    ] scheduler — Starting enhanced scheduler with real-time monitoring and batch writing...
+2026-03-23 15:17:15,128 [INFO    ] scheduler — Batch write interval: 5.0s
+2026-03-23 15:17:15,128 [INFO    ] scheduler — ============================================================
+2026-03-23 15:17:15,128 [INFO    ] scheduler — [RealTime] Initializing Real-Time Market Monitor Thread with batch writing...
+2026-03-23 15:17:15,128 [INFO    ] scheduler — [RealTime] Real-time monitor thread started successfully.
+2026-03-23 15:17:15,128 [INFO    ] scheduler — ============================================================
+2026-03-23 15:17:15,128 [INFO    ] scheduler — Scheduler configured:
+2026-03-23 15:17:15,128 [INFO    ] scheduler —   - Real-time monitoring: ACTIVE (background thread)
+2026-03-23 15:17:15,129 [INFO    ] scheduler —   - API Server: ACTIVE (127.0.0.1:8069 background thread)
+2026-03-23 15:17:15,129 [INFO    ] scheduler —   - A-Share analysis: 10:00, 11:20, 14:00, 14:40
+2026-03-23 15:17:15,129 [INFO    ] scheduler —   - HK-Share analysis: 10:30, 11:30, 14:30, 15:30
+2026-03-23 15:17:15,129 [INFO    ] scheduler —   - T+1 rollover: 08:55
+2026-03-23 15:17:15,129 [INFO    ] scheduler —   - Holiday checking: ENABLED (skips trading on holidays)
+2026-03-23 15:17:15,129 [INFO    ] scheduler —   - Execution time monitoring: ENABLED
+2026-03-23 15:17:15,129 [INFO    ] scheduler — ============================================================
+2026-03-23 15:17:15,129 [INFO    ] scheduler — Press Ctrl+C to stop.
+2026-03-23 15:17:15,129 [INFO    ] scheduler — Force-run mode enabled. Bypassing market open checks for initial analysis...
+2026-03-23 15:17:15,129 [INFO    ] scheduler — Running initial A-Share analysis...
+2026-03-23 15:17:15,129 [INFO    ] scheduler — === A-Share Market Job Started ===
+2026-03-23 15:17:15,233 [INFO    ] scheduler — [RealTime] Connected to FutuOpenD Quote Context for real-time monitoring.
+2026-03-23 15:17:15,300 [INFO    ] scheduler — [API Server] Starting FastAPI on 0.0.0.0:8069
+2026-03-23 15:17:15,634 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 4 for ATR stop-loss. Cache size: 57
+2026-03-23 15:17:15,732 [INFO    ] scheduler — [Batch Writer] Started with interval: 5.0s
+2026-03-23 15:17:15,733 [INFO    ] scheduler — [Batch Writer] Background thread started
+2026-03-23 15:17:15,733 [INFO    ] scheduler — [RealTime] Subscribing to real-time quotes for: ['SZ.159915', 'HK.00700', 'SH.510300', 'HK.07226', 'HK.03033', 'SH.510050', 'SH.600519', 'SH.588080', 'HK.01810', 'SZ.002594', 'SZ.000001', 'SZ.000002', 'SZ.000063', 'SZ.000333', 'SZ.000651', 'SZ.000725', 'SZ.000858', 'SZ.002415', 'SZ.300059', 'SZ.300750', 'SH.600000', 'SH.600036', 'SH.600900', 'SH.601318', 'SH.601857', 'SH.601888', 'SH.688981', 'SH.510500', 'SZ.159919', 'SH.512880', 'SH.515050', 'SH.515880', 'SH.512660', 'SH.516160', 'HK.00941', 'HK.01299', 'HK.02318', 'HK.03888', 'HK.06618', 'HK.06988', 'HK.09988', 'HK.01024', 'HK.01093', 'HK.01109', 'HK.01138', 'HK.01157', 'HK.01171', 'HK.01211', 'HK.02020', 'HK.02313', 'HK.02382', 'HK.02400', 'HK.02600', 'HK.02800', 'HK.02823', 'HK.02828', 'HK.03088']
+2026-03-23 15:17:15,980 [INFO    ] config — Configuration loaded from /Users/wensiyuan/mycode/LLM-Finance/config.yaml
+2026-03-23 15:17:16,338 [INFO    ] config — Configuration refreshed with 0 database overrides.
+2026-03-23 15:17:16,441 [INFO    ] main — Trading bot started | filter: ['A_SHARE'] (Config Hot-Reloaded).
+2026-03-23 15:17:17,268 [INFO    ] main — Portfolio Status | Value: 19000.04 | Cash: 10085.60 | Exposure: 46.9% | Limit: 90.0%
+2026-03-23 15:17:17,268 [INFO    ] main — Fetching data concurrently for 30 assets...
+2026-03-23 15:17:20,738 [ERROR   ] scheduler — [Batch Writer] Database error: name 'codes_to_update' is not defined
+2026-03-23 15:17:21,630 [INFO    ] main — [SZ.159915] Routing to Aggressive ETF Strategy (Grid+Trend)
+2026-03-23 15:17:21,630 [INFO    ] main — [SZ.159915] Signal: HOLD — 无网格/趋势执行信号 (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:17:23,955 [INFO    ] main — [SH.510300] Routing to Aggressive ETF Strategy (Grid+Trend)
+2026-03-23 15:17:23,956 [INFO    ] main — [SH.510300] Signal: BUY — 首仓: RSI极度超卖(21.5) (Sellable: 0.0, Score: 78.5)
+2026-03-23 15:17:25,743 [ERROR   ] scheduler — [Batch Writer] Database error: name 'codes_to_update' is not defined
+2026-03-23 15:17:25,826 [INFO    ] main — [SH.510050] Routing to Aggressive ETF Strategy (Grid+Trend)
+2026-03-23 15:17:25,828 [INFO    ] main — [SH.510050] Signal: HOLD — 无网格/趋势执行信号 (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:17:28,064 [INFO    ] main — [SH.600519] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:17:28,064 [INFO    ] main — [SH.600519] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:17:29,913 [INFO    ] main — [SH.588080] Routing to Aggressive ETF Strategy (Grid+Trend)
+2026-03-23 15:17:29,914 [INFO    ] main — [SH.588080] Signal: BUY — 首仓: RSI极度超卖(17.1) (Sellable: 0.0, Score: 82.9)
+2026-03-23 15:17:30,748 [ERROR   ] scheduler — [Batch Writer] Database error: name 'codes_to_update' is not defined
+2026-03-23 15:17:31,251 [INFO    ] main — [SZ.002594] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:17:31,252 [INFO    ] main — [SZ.002594] Signal: BUY — 趋势追入: 均线多头且RSI适中 (Sellable: 0.0, Score: 10.0)
+2026-03-23 15:17:32,577 [INFO    ] main — [SZ.000001] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:17:32,577 [INFO    ] main — [SZ.000001] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:17:33,889 [INFO    ] main — [SZ.000002] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:17:33,890 [INFO    ] main — [SZ.000002] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:17:35,182 [INFO    ] main — [SZ.000063] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:17:35,183 [INFO    ] main — [SZ.000063] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:17:35,753 [ERROR   ] scheduler — [Batch Writer] Database error: name 'codes_to_update' is not defined
+2026-03-23 15:17:36,564 [INFO    ] main — [SZ.000333] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:17:36,564 [INFO    ] main — [SZ.000333] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:17:37,876 [INFO    ] main — [SZ.000651] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:17:37,877 [INFO    ] main — [SZ.000651] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:17:39,263 [INFO    ] main — [SZ.000725] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:17:39,264 [INFO    ] main — [SZ.000725] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:17:40,694 [INFO    ] main — [SZ.000858] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:17:40,694 [INFO    ] main — [SZ.000858] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:17:40,755 [ERROR   ] scheduler — [Batch Writer] Database error: name 'codes_to_update' is not defined
+2026-03-23 15:17:42,670 [INFO    ] main — [SZ.002415] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:17:42,671 [INFO    ] main — [SZ.002415] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:17:44,082 [INFO    ] main — [SZ.300059] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:17:44,083 [INFO    ] main — [SZ.300059] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:17:50,757 [INFO    ] scheduler — ============================================================
+2026-03-23 15:17:50,758 [INFO    ] scheduler — Starting enhanced scheduler with real-time monitoring and batch writing...
+2026-03-23 15:17:50,758 [INFO    ] scheduler — Batch write interval: 5.0s
+2026-03-23 15:17:50,758 [INFO    ] scheduler — ============================================================
+2026-03-23 15:17:50,758 [INFO    ] scheduler — [RealTime] Initializing Real-Time Market Monitor Thread with batch writing...
+2026-03-23 15:17:50,759 [INFO    ] scheduler — [RealTime] Real-time monitor thread started successfully.
+2026-03-23 15:17:50,759 [INFO    ] scheduler — ============================================================
+2026-03-23 15:17:50,760 [INFO    ] scheduler — Scheduler configured:
+2026-03-23 15:17:50,760 [INFO    ] scheduler —   - Real-time monitoring: ACTIVE (background thread)
+2026-03-23 15:17:50,760 [INFO    ] scheduler —   - API Server: ACTIVE (127.0.0.1:8069 background thread)
+2026-03-23 15:17:50,761 [INFO    ] scheduler —   - A-Share analysis: 10:00, 11:20, 14:00, 14:40
+2026-03-23 15:17:50,761 [INFO    ] scheduler —   - HK-Share analysis: 10:30, 11:30, 14:30, 15:30
+2026-03-23 15:17:50,761 [INFO    ] scheduler —   - T+1 rollover: 08:55
+2026-03-23 15:17:50,761 [INFO    ] scheduler —   - Holiday checking: ENABLED (skips trading on holidays)
+2026-03-23 15:17:50,761 [INFO    ] scheduler —   - Execution time monitoring: ENABLED
+2026-03-23 15:17:50,761 [INFO    ] scheduler — ============================================================
+2026-03-23 15:17:50,761 [INFO    ] scheduler — Press Ctrl+C to stop.
+2026-03-23 15:17:50,761 [INFO    ] scheduler — Force-run mode enabled. Bypassing market open checks for initial analysis...
+2026-03-23 15:17:50,761 [INFO    ] scheduler — Running initial A-Share analysis...
+2026-03-23 15:17:50,761 [INFO    ] scheduler — === A-Share Market Job Started ===
+2026-03-23 15:17:50,885 [INFO    ] scheduler — [RealTime] Connected to FutuOpenD Quote Context for real-time monitoring.
+2026-03-23 15:17:50,966 [INFO    ] scheduler — [API Server] Starting FastAPI on 0.0.0.0:8069
+2026-03-23 15:17:51,306 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 4 for ATR stop-loss. Cache size: 57
+2026-03-23 15:17:51,408 [INFO    ] scheduler — [Batch Writer] Started with interval: 5.0s
+2026-03-23 15:17:51,408 [INFO    ] scheduler — [Batch Writer] Background thread started
+2026-03-23 15:17:51,408 [INFO    ] scheduler — [RealTime] Subscribing to real-time quotes for: ['SZ.159915', 'HK.00700', 'SH.510300', 'HK.07226', 'HK.03033', 'SH.510050', 'SH.600519', 'SH.588080', 'HK.01810', 'SZ.002594', 'SZ.000001', 'SZ.000002', 'SZ.000063', 'SZ.000333', 'SZ.000651', 'SZ.000725', 'SZ.000858', 'SZ.002415', 'SZ.300059', 'SZ.300750', 'SH.600000', 'SH.600036', 'SH.600900', 'SH.601318', 'SH.601857', 'SH.601888', 'SH.688981', 'SH.510500', 'SZ.159919', 'SH.512880', 'SH.515050', 'SH.515880', 'SH.512660', 'SH.516160', 'HK.00941', 'HK.01299', 'HK.02318', 'HK.03888', 'HK.06618', 'HK.06988', 'HK.09988', 'HK.01024', 'HK.01093', 'HK.01109', 'HK.01138', 'HK.01157', 'HK.01171', 'HK.01211', 'HK.02020', 'HK.02313', 'HK.02382', 'HK.02400', 'HK.02600', 'HK.02800', 'HK.02823', 'HK.02828', 'HK.03088']
+2026-03-23 15:17:51,593 [INFO    ] config — Configuration loaded from /Users/wensiyuan/mycode/LLM-Finance/config.yaml
+2026-03-23 15:17:51,935 [INFO    ] config — Configuration refreshed with 0 database overrides.
+2026-03-23 15:17:52,032 [INFO    ] main — Trading bot started | filter: ['A_SHARE'] (Config Hot-Reloaded).
+2026-03-23 15:17:52,823 [INFO    ] main — Portfolio Status | Value: 19000.04 | Cash: 10085.60 | Exposure: 46.9% | Limit: 90.0%
+2026-03-23 15:17:52,823 [INFO    ] main — Fetching data concurrently for 30 assets...
+2026-03-23 15:17:56,757 [INFO    ] main — [SZ.159915] Routing to Aggressive ETF Strategy (Grid+Trend)
+2026-03-23 15:17:56,758 [INFO    ] main — [SZ.159915] Signal: HOLD — 无网格/趋势执行信号 (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:17:57,949 [INFO    ] main — [SH.510300] Routing to Aggressive ETF Strategy (Grid+Trend)
+2026-03-23 15:17:57,949 [INFO    ] main — [SH.510300] Signal: BUY — 首仓: RSI极度超卖(21.5) (Sellable: 0.0, Score: 78.5)
+2026-03-23 15:17:59,218 [INFO    ] main — [SH.510050] Routing to Aggressive ETF Strategy (Grid+Trend)
+2026-03-23 15:17:59,218 [INFO    ] main — [SH.510050] Signal: HOLD — 无网格/趋势执行信号 (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:17:59,998 [INFO    ] scheduler — [Batch Writer] Flushed 57 updates in 3.590s
+2026-03-23 15:18:00,679 [INFO    ] main — [SH.600519] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:18:00,680 [INFO    ] main — [SH.600519] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:01,879 [INFO    ] main — [SH.588080] Routing to Aggressive ETF Strategy (Grid+Trend)
+2026-03-23 15:18:01,880 [INFO    ] main — [SH.588080] Signal: BUY — 首仓: RSI极度超卖(17.1) (Sellable: 0.0, Score: 82.9)
+2026-03-23 15:18:03,104 [INFO    ] main — [SZ.002594] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:18:03,105 [INFO    ] main — [SZ.002594] Signal: BUY — 趋势追入: 均线多头且RSI适中 (Sellable: 0.0, Score: 10.0)
+2026-03-23 15:18:04,302 [INFO    ] main — [SZ.000001] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:18:04,302 [INFO    ] main — [SZ.000001] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:05,524 [INFO    ] main — [SZ.000002] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:18:05,525 [INFO    ] main — [SZ.000002] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:06,719 [INFO    ] main — [SZ.000063] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:18:06,719 [INFO    ] main — [SZ.000063] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:06,813 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.811s
+2026-03-23 15:18:08,000 [INFO    ] main — [SZ.000333] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:18:08,001 [INFO    ] main — [SZ.000333] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:09,265 [INFO    ] main — [SZ.000651] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:18:09,266 [INFO    ] main — [SZ.000651] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:10,434 [INFO    ] main — [SZ.000725] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:18:10,435 [INFO    ] main — [SZ.000725] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:11,613 [INFO    ] main — [SZ.000858] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:18:11,613 [INFO    ] main — [SZ.000858] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:12,881 [INFO    ] main — [SZ.002415] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:18:12,881 [INFO    ] main — [SZ.002415] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:13,416 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.602s
+2026-03-23 15:18:14,113 [INFO    ] main — [SZ.300059] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:18:14,113 [INFO    ] main — [SZ.300059] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:15,416 [INFO    ] main — [SZ.300750] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:18:15,417 [INFO    ] main — [SZ.300750] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:17,033 [INFO    ] main — [SH.600000] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:18:17,033 [INFO    ] main — [SH.600000] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:18,632 [INFO    ] main — [SH.600036] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:18:18,633 [INFO    ] main — [SH.600036] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:20,080 [INFO    ] scheduler — [Batch Writer] Flushed 18 updates in 1.648s
+2026-03-23 15:18:20,353 [INFO    ] main — [SH.600900] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:18:20,354 [INFO    ] main — [SH.600900] Signal: BUY — 强买入信号: 小时线RSI超卖(28.8) + 触及小时线布林带下轨 (Sellable: 0.0, Score: 71.2)
+2026-03-23 15:18:22,105 [INFO    ] main — [SH.601318] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:18:22,105 [INFO    ] main — [SH.601318] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:23,780 [INFO    ] main — [SH.601857] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:18:23,781 [INFO    ] main — [SH.601857] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:26,452 [INFO    ] main — [SH.601888] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:18:26,452 [INFO    ] main — [SH.601888] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:26,789 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.687s
+2026-03-23 15:18:28,045 [INFO    ] main — [SH.688981] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:18:28,046 [INFO    ] main — [SH.688981] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:29,920 [INFO    ] main — [SH.510500] Routing to Aggressive ETF Strategy (Grid+Trend)
+2026-03-23 15:18:29,921 [INFO    ] main — [SH.510500] Signal: HOLD — 无网格/趋势执行信号 (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:31,768 [INFO    ] main — [SZ.159919] Routing to Aggressive ETF Strategy (Grid+Trend)
+2026-03-23 15:18:31,769 [INFO    ] main — [SZ.159919] Signal: BUY — 首仓: RSI极度超卖(22.4) (Sellable: 0.0, Score: 77.6)
+2026-03-23 15:18:33,335 [INFO    ] scheduler — [Batch Writer] Flushed 19 updates in 1.544s
+2026-03-23 15:18:33,359 [INFO    ] main — [SH.512880] Routing to Aggressive ETF Strategy (Grid+Trend)
+2026-03-23 15:18:33,359 [INFO    ] main — [SH.512880] Signal: BUY — 首仓: RSI极度超卖(17.6) (Sellable: 0.0, Score: 82.4)
+2026-03-23 15:18:35,028 [INFO    ] main — [SH.515050] Routing to Aggressive ETF Strategy (Grid+Trend)
+2026-03-23 15:18:35,028 [INFO    ] main — [SH.515050] Signal: HOLD — 无网格/趋势执行信号 (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:36,639 [INFO    ] main — [SH.515880] Routing to Aggressive ETF Strategy (Grid+Trend)
+2026-03-23 15:18:36,640 [INFO    ] main — [SH.515880] Signal: HOLD — 无网格/趋势执行信号 (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:38,555 [INFO    ] main — [SH.512660] Routing to Aggressive ETF Strategy (Grid+Trend)
+2026-03-23 15:18:38,556 [INFO    ] main — [SH.512660] Signal: HOLD — 无网格/趋势执行信号 (Sellable: 1800.0, Score: 0.0)
+2026-03-23 15:18:40,066 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.726s
+2026-03-23 15:18:41,948 [INFO    ] main — [SH.516160] Routing to Aggressive ETF Strategy (Grid+Trend)
+2026-03-23 15:18:41,949 [INFO    ] main — [SH.516160] Signal: HOLD — 无网格/趋势执行信号 (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:42,098 [INFO    ] engine.portfolio — [SH.588080] Skipped BUY (Slot Limit Reached: 30/3)
+2026-03-23 15:18:42,098 [INFO    ] engine.portfolio — [SH.512880] Skipped BUY (Slot Limit Reached: 30/3)
+2026-03-23 15:18:42,098 [INFO    ] engine.portfolio — [SH.510300] Skipped BUY (Slot Limit Reached: 30/3)
+2026-03-23 15:18:42,098 [INFO    ] engine.portfolio — [SZ.159919] Skipped BUY (Slot Limit Reached: 30/3)
+2026-03-23 15:18:42,098 [INFO    ] engine.portfolio — [SH.600900] Skipped BUY (Slot Limit Reached: 30/3)
+2026-03-23 15:18:42,098 [INFO    ] engine.portfolio — [SZ.002594] Skipped BUY (Slot Limit Reached: 30/3)
+2026-03-23 15:18:42,101 [INFO    ] scheduler — === A-Share Market Job Finished (Elapsed: 51.3s) ===
+2026-03-23 15:18:42,102 [INFO    ] scheduler — Running initial HK-Share analysis...
+2026-03-23 15:18:42,102 [INFO    ] scheduler — === HK-Share Market Job Started ===
+2026-03-23 15:18:42,904 [INFO    ] config — Configuration loaded from /Users/wensiyuan/mycode/LLM-Finance/config.yaml
+2026-03-23 15:18:43,246 [INFO    ] config — Configuration refreshed with 0 database overrides.
+2026-03-23 15:18:43,343 [INFO    ] main — Trading bot started | filter: ['HK_SHARE'] (Config Hot-Reloaded).
+2026-03-23 15:18:43,865 [INFO    ] main — Portfolio Status | Value: 59999.98 | Cash: 50741.50 | Exposure: 15.4% | Limit: 90.0%
+2026-03-23 15:18:43,866 [INFO    ] main — Fetching data concurrently for 27 assets...
+2026-03-23 15:18:46,590 [INFO    ] scheduler — [Batch Writer] Flushed 20 updates in 1.521s
+2026-03-23 15:18:47,820 [INFO    ] main — [HK.00700] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:18:47,820 [INFO    ] main — [HK.00700] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:49,551 [INFO    ] main — [HK.07226] Routing to Leveraged ETF Momentum Strategy
+2026-03-23 15:18:49,561 [INFO    ] main — [HK.07226] Signal: HOLD — 无杠杆策略信号 (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:51,350 [INFO    ] main — [HK.03033] Routing to Aggressive ETF Strategy (Grid+Trend)
+2026-03-23 15:18:51,351 [INFO    ] main — [HK.03033] Signal: HOLD — 无网格/趋势执行信号 (Sellable: 2000.0, Score: 0.0)
+2026-03-23 15:18:51,928 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 4 for ATR stop-loss. Cache size: 57
+2026-03-23 15:18:52,029 [INFO    ] scheduler — [RealTime Stats] Updates: 1073, Batch writes: 8, Pending: 2, Cache: 57
+2026-03-23 15:18:52,933 [INFO    ] scheduler — [Batch Writer] Flushed 16 updates in 1.337s
+2026-03-23 15:18:53,178 [INFO    ] main — [HK.01810] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:18:53,178 [INFO    ] main — [HK.01810] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:54,813 [INFO    ] main — [HK.00941] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:18:54,814 [INFO    ] main — [HK.00941] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:56,495 [INFO    ] main — [HK.01299] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:18:56,495 [INFO    ] main — [HK.01299] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:18:58,185 [INFO    ] main — [HK.02318] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:18:58,186 [INFO    ] main — [HK.02318] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:19:00,397 [INFO    ] main — [HK.03888] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:19:00,399 [INFO    ] main — [HK.03888] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:19:00,742 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 2.803s
+2026-03-23 15:19:02,087 [INFO    ] main — [HK.06618] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:19:02,087 [INFO    ] main — [HK.06618] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:19:03,804 [INFO    ] main — [HK.06988] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:19:03,804 [INFO    ] main — [HK.06988] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:19:05,406 [INFO    ] main — [HK.09988] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:19:05,406 [INFO    ] main — [HK.09988] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:19:07,110 [INFO    ] main — [HK.01024] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:19:07,110 [INFO    ] main — [HK.01024] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:19:07,600 [INFO    ] scheduler — [Batch Writer] Flushed 24 updates in 1.856s
+2026-03-23 15:19:08,795 [INFO    ] main — [HK.01093] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:19:08,795 [INFO    ] main — [HK.01093] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:19:10,464 [INFO    ] main — [HK.01109] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:19:10,465 [INFO    ] main — [HK.01109] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:19:12,278 [INFO    ] main — [HK.01138] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:19:12,279 [INFO    ] main — [HK.01138] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:19:13,856 [INFO    ] main — [HK.01157] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:19:13,857 [INFO    ] main — [HK.01157] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:19:14,019 [INFO    ] scheduler — [Batch Writer] Flushed 18 updates in 1.414s
+2026-03-23 15:19:15,473 [INFO    ] main — [HK.01171] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:19:15,473 [INFO    ] main — [HK.01171] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:19:17,181 [INFO    ] main — [HK.01211] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:19:17,181 [INFO    ] main — [HK.01211] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:19:18,771 [INFO    ] main — [HK.02020] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:19:18,774 [INFO    ] main — [HK.02020] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:19:20,461 [INFO    ] main — [HK.02313] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:19:20,461 [INFO    ] main — [HK.02313] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:19:20,512 [INFO    ] scheduler — [Batch Writer] Flushed 19 updates in 1.488s
+2026-03-23 15:19:22,031 [INFO    ] main — [HK.02382] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:19:22,032 [INFO    ] main — [HK.02382] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:19:23,711 [INFO    ] main — [HK.02400] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:19:23,712 [INFO    ] main — [HK.02400] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:19:25,409 [INFO    ] main — [HK.02600] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:19:25,410 [INFO    ] main — [HK.02600] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:19:27,049 [INFO    ] main — [HK.02800] Routing to Aggressive ETF Strategy (Grid+Trend)
+2026-03-23 15:19:27,050 [INFO    ] main — [HK.02800] Signal: BUY — 首仓: RSI极度超卖(17.9) (Sellable: 0.0, Score: 82.1)
+2026-03-23 15:19:27,152 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.640s
+2026-03-23 15:19:28,723 [INFO    ] main — [HK.02823] Routing to Aggressive ETF Strategy (Grid+Trend)
+2026-03-23 15:19:28,723 [INFO    ] main — [HK.02823] Signal: BUY — 首仓: RSI极度超卖(23.3) (Sellable: 0.0, Score: 76.7)
+2026-03-23 15:19:30,330 [INFO    ] main — [HK.02828] Routing to Aggressive ETF Strategy (Grid+Trend)
+2026-03-23 15:19:30,331 [INFO    ] main — [HK.02828] Signal: BUY — 首仓: RSI极度超卖(17.8) (Sellable: 0.0, Score: 82.2)
+2026-03-23 15:19:31,998 [INFO    ] main — [HK.03088] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:19:31,998 [INFO    ] main — [HK.03088] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:19:32,140 [INFO    ] engine.portfolio — [HK.02828] Skipped BUY (Slot Limit Reached: 27/3)
+2026-03-23 15:19:32,140 [INFO    ] engine.portfolio — [HK.02800] Skipped BUY (Slot Limit Reached: 27/3)
+2026-03-23 15:19:32,141 [INFO    ] engine.portfolio — [HK.02823] Skipped BUY (Slot Limit Reached: 27/3)
+2026-03-23 15:19:32,143 [INFO    ] scheduler — === HK-Share Market Job Finished (Elapsed: 50.0s) ===
+2026-03-23 15:19:33,823 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.665s
+2026-03-23 15:19:40,244 [INFO    ] scheduler — [Batch Writer] Flushed 19 updates in 1.416s
+2026-03-23 15:19:46,891 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.644s
+2026-03-23 15:19:52,427 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 4 for ATR stop-loss. Cache size: 57
+2026-03-23 15:19:52,524 [INFO    ] scheduler — [RealTime Stats] Updates: 2208, Batch writes: 17, Pending: 10, Cache: 57
+2026-03-23 15:19:53,539 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.645s
+2026-03-23 15:20:00,247 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.706s
+2026-03-23 15:20:06,771 [INFO    ] scheduler — [Batch Writer] Flushed 19 updates in 1.521s
+2026-03-23 15:20:13,350 [INFO    ] scheduler — [Batch Writer] Flushed 20 updates in 1.574s
+2026-03-23 15:20:19,951 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.600s
+2026-03-23 15:20:26,631 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.674s
+2026-03-23 15:20:33,265 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.630s
+2026-03-23 15:20:40,026 [INFO    ] scheduler — [Batch Writer] Flushed 25 updates in 1.758s
+2026-03-23 15:20:46,556 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.524s
+2026-03-23 15:20:52,946 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 4 for ATR stop-loss. Cache size: 57
+2026-03-23 15:20:53,022 [INFO    ] scheduler — [Batch Writer] Flushed 20 updates in 1.464s
+2026-03-23 15:20:53,053 [INFO    ] scheduler — [RealTime Stats] Updates: 3356, Batch writes: 27, Pending: 12, Cache: 57
+2026-03-23 15:20:59,419 [INFO    ] scheduler — [Batch Writer] Flushed 18 updates in 1.395s
+2026-03-23 15:21:06,085 [INFO    ] scheduler — [Batch Writer] Flushed 24 updates in 1.664s
+2026-03-23 15:21:12,700 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.610s
+2026-03-23 15:21:19,310 [INFO    ] scheduler — [Batch Writer] Flushed 20 updates in 1.606s
+2026-03-23 15:21:25,780 [INFO    ] scheduler — [Batch Writer] Flushed 20 updates in 1.465s
+2026-03-23 15:21:32,332 [INFO    ] scheduler — [Batch Writer] Flushed 20 updates in 1.551s
+2026-03-23 15:21:39,055 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.719s
+2026-03-23 15:21:45,527 [INFO    ] scheduler — [Batch Writer] Flushed 20 updates in 1.472s
+2026-03-23 15:21:52,108 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.576s
+2026-03-23 15:21:53,510 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 4 for ATR stop-loss. Cache size: 57
+2026-03-23 15:21:53,609 [INFO    ] scheduler — [RealTime Stats] Updates: 4544, Batch writes: 36, Pending: 17, Cache: 57
+2026-03-23 15:21:58,764 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.651s
+2026-03-23 15:22:05,323 [INFO    ] scheduler — [Batch Writer] Flushed 20 updates in 1.553s
+2026-03-23 15:22:11,921 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.595s
+2026-03-23 15:22:18,264 [INFO    ] scheduler — [Batch Writer] Flushed 18 updates in 1.338s
+2026-03-23 15:22:24,800 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.532s
+2026-03-23 15:22:31,145 [INFO    ] scheduler — [Batch Writer] Flushed 15 updates in 1.341s
+2026-03-23 15:22:37,927 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.776s
+2026-03-23 15:22:44,419 [INFO    ] scheduler — [Batch Writer] Flushed 20 updates in 1.484s
+2026-03-23 15:22:50,726 [INFO    ] scheduler — [Batch Writer] Flushed 16 updates in 1.301s
+2026-03-23 15:22:54,006 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 4 for ATR stop-loss. Cache size: 57
+2026-03-23 15:22:54,102 [INFO    ] scheduler — [RealTime Stats] Updates: 5590, Batch writes: 45, Pending: 22, Cache: 57
+2026-03-23 15:22:57,441 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.709s
+2026-03-23 15:23:04,027 [INFO    ] scheduler — [Batch Writer] Flushed 19 updates in 1.581s
+2026-03-23 15:23:10,542 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.508s
+2026-03-23 15:23:17,213 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.665s
+2026-03-23 15:23:24,124 [INFO    ] scheduler — [Batch Writer] Flushed 24 updates in 1.911s
+2026-03-23 15:23:30,711 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.580s
+2026-03-23 15:23:37,306 [INFO    ] scheduler — [Batch Writer] Flushed 20 updates in 1.591s
+2026-03-23 15:23:44,032 [INFO    ] scheduler — [Batch Writer] Flushed 19 updates in 1.714s
+2026-03-23 15:23:50,536 [INFO    ] scheduler — [Batch Writer] Flushed 19 updates in 1.498s
+2026-03-23 15:23:54,493 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 4 for ATR stop-loss. Cache size: 57
+2026-03-23 15:23:54,589 [INFO    ] scheduler — [RealTime Stats] Updates: 6557, Batch writes: 54, Pending: 22, Cache: 57
+2026-03-23 15:23:57,278 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.735s
+2026-03-23 15:24:03,891 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.607s
+2026-03-23 15:24:10,444 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.552s
+2026-03-23 15:24:17,085 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.635s
+2026-03-23 15:24:23,490 [INFO    ] scheduler — [Batch Writer] Flushed 18 updates in 1.399s
+2026-03-23 15:24:29,954 [INFO    ] scheduler — [Batch Writer] Flushed 19 updates in 1.461s
+2026-03-23 15:24:36,429 [INFO    ] scheduler — [Batch Writer] Flushed 19 updates in 1.472s
+2026-03-23 15:24:43,003 [INFO    ] scheduler — [Batch Writer] Flushed 20 updates in 1.570s
+2026-03-23 15:24:49,427 [INFO    ] scheduler — [Batch Writer] Flushed 19 updates in 1.422s
+2026-03-23 15:24:55,001 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 4 for ATR stop-loss. Cache size: 57
+2026-03-23 15:24:55,103 [INFO    ] scheduler — [RealTime Stats] Updates: 7464, Batch writes: 63, Pending: 10, Cache: 57
+2026-03-23 15:24:55,845 [INFO    ] scheduler — [Batch Writer] Flushed 19 updates in 1.413s
+2026-03-23 15:25:02,144 [INFO    ] scheduler — [Batch Writer] Flushed 16 updates in 1.291s
+2026-03-23 15:25:08,684 [INFO    ] scheduler — [Batch Writer] Flushed 20 updates in 1.534s
+2026-03-23 15:25:15,440 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.750s
+2026-03-23 15:25:22,097 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.653s
+2026-03-23 15:25:28,636 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.533s
+2026-03-23 15:25:35,381 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.740s
+2026-03-23 15:25:41,986 [INFO    ] scheduler — [Batch Writer] Flushed 20 updates in 1.602s
+2026-03-23 15:25:48,557 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.565s
+2026-03-23 15:25:55,071 [INFO    ] scheduler — [Batch Writer] Flushed 20 updates in 1.509s
+2026-03-23 15:25:55,535 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 4 for ATR stop-loss. Cache size: 57
+2026-03-23 15:25:55,639 [INFO    ] scheduler — [RealTime Stats] Updates: 8356, Batch writes: 73, Pending: 13, Cache: 57
+2026-03-23 15:26:01,637 [INFO    ] scheduler — [Batch Writer] Flushed 20 updates in 1.566s
+2026-03-23 15:26:08,121 [INFO    ] scheduler — [Batch Writer] Flushed 19 updates in 1.478s
+2026-03-23 15:26:14,670 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.547s
+2026-03-23 15:26:21,104 [INFO    ] scheduler — [Batch Writer] Flushed 19 updates in 1.428s
+2026-03-23 15:26:27,474 [INFO    ] scheduler — [Batch Writer] Flushed 18 updates in 1.366s

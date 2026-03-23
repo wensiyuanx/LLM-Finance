@@ -2,34 +2,33 @@ from datetime import datetime, time
 import pytz
 from database.models import MarketType
 
-# Chinese holidays (YYYY-MM-DD format)
-# Note: This is a simplified list. In production, use an API or comprehensive library
-CHINESE_HOLIDAYS_2024 = [
-    "2024-01-01",  # New Year's Day
-    "2024-02-10", "2024-02-11", "2024-02-12", "2024-02-13", "2024-02-14", "2024-02-15", "2024-02-16", "2024-02-17",  # Spring Festival
-    "2024-04-04", "2024-04-05", "2024-04-06",  # Qingming Festival
-    "2024-05-01", "2024-05-02", "2024-05-03", "2024-05-04", "2024-05-05",  # Labor Day
-    "2024-06-10",  # Dragon Boat Festival
-    "2024-09-15", "2024-09-16", "2024-09-17",  # Mid-Autumn Festival
-    "2024-10-01", "2024-10-02", "2024-10-03", "2024-10-04", "2024-10-05", "2024-10-06", "2024-10-07",  # National Day
+# Chinese holidays 2026 (YYYY-MM-DD format)
+CHINESE_HOLIDAYS_2026 = [
+    "2026-01-01",  # New Year's Day
+    "2026-02-16", "2026-02-17", "2026-02-18", "2026-02-19", "2026-02-20", "2026-02-21", "2026-02-22",  # Spring Festival
+    "2026-04-04", "2026-04-05", "2026-04-06",  # Qingming Festival
+    "2026-05-01", "2026-05-02", "2026-05-03", "2026-05-04", "2026-05-05",  # Labor Day
+    "2026-06-19",  # Dragon Boat Festival
+    "2026-09-25",  # Mid-Autumn Festival
+    "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07",  # National Day
 ]
 
-# Hong Kong holidays (YYYY-MM-DD format)
-HK_HOLIDAYS_2024 = [
-    "2024-01-01",  # New Year's Day
-    "2024-02-10", "2024-02-11", "2024-02-12",  # Lunar New Year
-    "2024-02-13",  # Fourth day of Lunar New Year
-    "2024-03-29",  # Good Friday
-    "2024-04-01",  # Easter Monday
-    "2024-04-04",  # Ching Ming Festival
-    "2024-05-01",  # Labour Day
-    "2024-05-15",  # Birthday of the Buddha
-    "2024-06-10",  # Tuen Ng Festival
-    "2024-07-01",  # HK SAR Establishment Day
-    "2024-09-18",  # Day following Mid-Autumn Festival
-    "2024-10-01",  # National Day
-    "2024-10-11",  # Chung Yeung Festival
-    "2024-12-25", "2024-12-26",  # Christmas Day
+# Hong Kong holidays 2026 (YYYY-MM-DD format)
+HK_HOLIDAYS_2026 = [
+    "2026-01-01",  # New Year's Day
+    "2026-02-17", "2026-02-18", "2026-02-19",  # Lunar New Year
+    "2026-04-03",  # Good Friday
+    "2026-04-04",  # Day following Good Friday
+    "2026-04-06",  # Easter Monday
+    "2026-04-05",  # Ching Ming Festival (Observed on 4.6)
+    "2026-05-01",  # Labour Day
+    "2026-05-24",  # Birthday of the Buddha
+    "2026-06-19",  # Tuen Ng Festival
+    "2026-07-01",  # HK SAR Establishment Day
+    "2026-09-26",  # Day following Mid-Autumn Festival
+    "2026-10-01",  # National Day
+    "2026-10-19",  # Chung Yeung Festival
+    "2026-12-25", "2026-12-26",  # Christmas Day
 ]
 
 def is_holiday(market_type: MarketType) -> bool:
@@ -41,25 +40,27 @@ def is_holiday(market_type: MarketType) -> bool:
 
     holidays = []
     if market_type == MarketType.A_SHARE:
-        holidays = CHINESE_HOLIDAYS_2024
+        holidays = CHINESE_HOLIDAYS_2026
     elif market_type == MarketType.HK_SHARE:
-        holidays = HK_HOLIDAYS_2024
+        holidays = HK_HOLIDAYS_2026
 
     return today in holidays
 
 def is_market_open(market_type: MarketType) -> bool:
     """
     Checks if the current time is within market hours for the given market.
-    
-    A-Share: 09:30-11:30, 13:00-15:00 (CST)
-    HK-Share: 09:30-12:00, 13:00-16:00 (CST)
+    Including holiday checks.
     """
     # CST = China Standard Time (UTC+8)
     tz = pytz.timezone('Asia/Shanghai')
     now = datetime.now(tz)
     
-    # Market is closed on weekends
+    # 1. Market is closed on weekends
     if now.weekday() >= 5:
+        return False
+        
+    # 2. Market is closed on holidays
+    if is_holiday(market_type):
         return False
         
     current_time = now.time()
