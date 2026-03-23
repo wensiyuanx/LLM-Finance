@@ -2178,3 +2178,167 @@ WHERE asset_monitor.is_active = %s AND asset_monitor.market_type IN (%s)]
 2026-03-23 15:26:14,670 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.547s
 2026-03-23 15:26:21,104 [INFO    ] scheduler — [Batch Writer] Flushed 19 updates in 1.428s
 2026-03-23 15:26:27,474 [INFO    ] scheduler — [Batch Writer] Flushed 18 updates in 1.366s
+2026-03-23 15:26:33,896 [INFO    ] scheduler — [Batch Writer] Flushed 18 updates in 1.416s
+2026-03-23 15:26:40,264 [INFO    ] scheduler — [Batch Writer] Flushed 17 updates in 1.362s
+2026-03-23 15:26:46,970 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.700s
+2026-03-23 15:26:53,517 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.542s
+2026-03-23 15:26:56,035 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 4 for ATR stop-loss. Cache size: 57
+2026-03-23 15:26:56,130 [INFO    ] scheduler — [RealTime Stats] Updates: 9237, Batch writes: 82, Pending: 21, Cache: 57
+2026-03-23 15:27:00,145 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.623s
+2026-03-23 15:27:06,708 [INFO    ] scheduler — [Batch Writer] Flushed 19 updates in 1.560s
+2026-03-23 15:27:13,290 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.577s
+2026-03-23 15:27:19,952 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.656s
+2026-03-23 15:27:26,703 [INFO    ] scheduler — [Batch Writer] Flushed 24 updates in 1.745s
+2026-03-23 15:27:33,319 [INFO    ] scheduler — [Batch Writer] Flushed 20 updates in 1.612s
+2026-03-23 15:27:39,871 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.546s
+2026-03-23 15:27:46,426 [INFO    ] scheduler — [Batch Writer] Flushed 19 updates in 1.552s
+2026-03-23 15:27:53,028 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.600s
+2026-03-23 15:27:56,529 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 4 for ATR stop-loss. Cache size: 57
+2026-03-23 15:27:56,627 [INFO    ] scheduler — [RealTime Stats] Updates: 10253, Batch writes: 91, Pending: 19, Cache: 57
+2026-03-23 15:27:59,612 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.579s
+2026-03-23 15:28:06,231 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.616s
+2026-03-23 15:28:12,784 [INFO    ] scheduler — [Batch Writer] Flushed 20 updates in 1.548s
+2026-03-23 15:28:19,420 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.630s
+2026-03-23 15:28:26,031 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.606s
+2026-03-23 15:28:32,679 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.646s
+2026-03-23 15:28:39,294 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.609s
+2026-03-23 15:28:46,014 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.718s
+2026-03-23 15:28:52,476 [INFO    ] scheduler — [Batch Writer] Flushed 20 updates in 1.457s
+2026-03-23 15:28:57,032 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 4 for ATR stop-loss. Cache size: 57
+2026-03-23 15:28:57,132 [INFO    ] scheduler — [RealTime Stats] Updates: 11117, Batch writes: 100, Pending: 21, Cache: 57
+2026-03-23 15:28:59,034 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.556s
+2026-03-23 15:29:05,511 [INFO    ] scheduler — [Batch Writer] Flushed 18 updates in 1.475s
+2026-03-23 15:29:12,167 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.654s
+2026-03-23 15:29:18,814 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.643s
+2026-03-23 15:29:25,442 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.622s
+2026-03-23 15:29:31,989 [INFO    ] scheduler — [Batch Writer] Flushed 20 updates in 1.541s
+2026-03-23 15:29:38,777 [INFO    ] scheduler — [Batch Writer] Flushed 24 updates in 1.781s
+2026-03-23 15:29:45,486 [INFO    ] scheduler — [Batch Writer] Flushed 19 updates in 1.705s
+2026-03-23 15:29:52,017 [INFO    ] scheduler — [Batch Writer] Flushed 20 updates in 1.525s
+2026-03-23 15:29:57,532 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 4 for ATR stop-loss. Cache size: 57
+2026-03-23 15:29:57,630 [INFO    ] scheduler — [RealTime Stats] Updates: 12134, Batch writes: 109, Pending: 7, Cache: 57
+2026-03-23 15:29:58,638 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.616s
+2026-03-23 15:30:05,421 [INFO    ] scheduler — [Batch Writer] Flushed 24 updates in 1.782s
+2026-03-23 15:30:12,336 [INFO    ] scheduler — [Batch Writer] Flushed 24 updates in 1.912s
+2026-03-23 15:30:18,961 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.622s
+2026-03-23 15:30:25,590 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.623s
+2026-03-23 15:30:32,179 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.585s
+2026-03-23 15:30:32,184 [INFO    ] scheduler — === HK-Share Market Job Started ===
+2026-03-23 15:30:33,040 [INFO    ] config — Configuration loaded from /Users/wensiyuan/mycode/LLM-Finance/config.yaml
+2026-03-23 15:30:33,386 [INFO    ] config — Configuration refreshed with 0 database overrides.
+2026-03-23 15:30:33,484 [INFO    ] main — Trading bot started | filter: ['HK_SHARE'] (Config Hot-Reloaded).
+2026-03-23 15:30:34,021 [INFO    ] main — Portfolio Status | Value: 59999.98 | Cash: 50741.50 | Exposure: 15.4% | Limit: 90.0%
+2026-03-23 15:30:34,022 [INFO    ] main — Fetching data concurrently for 27 assets...
+2026-03-23 15:30:38,773 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.591s
+2026-03-23 15:30:39,551 [INFO    ] main — [HK.00700] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:30:39,552 [INFO    ] main — [HK.00700] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:30:40,689 [INFO    ] main — [HK.07226] Routing to Leveraged ETF Momentum Strategy
+2026-03-23 15:30:40,698 [INFO    ] main — [HK.07226] Signal: HOLD — 无杠杆策略信号 (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:30:42,140 [INFO    ] main — [HK.03033] Routing to Aggressive ETF Strategy (Grid+Trend)
+2026-03-23 15:30:42,141 [INFO    ] main — [HK.03033] Signal: HOLD — 无网格/趋势执行信号 (Sellable: 2000.0, Score: 0.0)
+2026-03-23 15:30:43,621 [INFO    ] main — [HK.01810] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:30:43,621 [INFO    ] main — [HK.01810] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:30:44,851 [INFO    ] main — [HK.00941] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:30:44,852 [INFO    ] main — [HK.00941] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:30:45,723 [INFO    ] scheduler — [Batch Writer] Flushed 25 updates in 1.945s
+2026-03-23 15:30:46,170 [INFO    ] main — [HK.01299] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:30:46,172 [INFO    ] main — [HK.01299] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:30:47,392 [INFO    ] main — [HK.02318] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:30:47,392 [INFO    ] main — [HK.02318] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:30:48,573 [INFO    ] main — [HK.03888] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:30:48,574 [INFO    ] main — [HK.03888] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:30:49,861 [INFO    ] main — [HK.06618] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:30:49,862 [INFO    ] main — [HK.06618] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:30:51,171 [INFO    ] main — [HK.06988] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:30:51,172 [INFO    ] main — [HK.06988] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:30:52,513 [INFO    ] main — [HK.09988] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:30:52,514 [INFO    ] main — [HK.09988] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:30:52,671 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.937s
+2026-03-23 15:30:53,735 [INFO    ] main — [HK.01024] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:30:53,736 [INFO    ] main — [HK.01024] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:30:54,905 [INFO    ] main — [HK.01093] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:30:54,906 [INFO    ] main — [HK.01093] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:30:56,258 [INFO    ] main — [HK.01109] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:30:56,259 [INFO    ] main — [HK.01109] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:30:57,505 [INFO    ] main — [HK.01138] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:30:57,506 [INFO    ] main — [HK.01138] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:30:58,035 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 7 for ATR stop-loss. Cache size: 57
+2026-03-23 15:30:58,140 [INFO    ] scheduler — [RealTime Stats] Updates: 13145, Batch writes: 118, Pending: 8, Cache: 57
+2026-03-23 15:30:58,699 [INFO    ] main — [HK.01157] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:30:58,699 [INFO    ] main — [HK.01157] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:30:59,401 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.726s
+2026-03-23 15:30:59,976 [INFO    ] main — [HK.01171] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:30:59,976 [INFO    ] main — [HK.01171] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:31:01,211 [INFO    ] main — [HK.01211] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:31:01,211 [INFO    ] main — [HK.01211] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:31:02,550 [INFO    ] main — [HK.02020] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:31:02,550 [INFO    ] main — [HK.02020] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:31:03,721 [INFO    ] main — [HK.02313] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:31:03,722 [INFO    ] main — [HK.02313] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:31:04,937 [INFO    ] main — [HK.02382] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:31:04,938 [INFO    ] main — [HK.02382] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:31:06,271 [INFO    ] main — [HK.02400] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:31:06,272 [INFO    ] main — [HK.02400] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:31:06,339 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.930s
+2026-03-23 15:31:07,529 [INFO    ] main — [HK.02600] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:31:07,530 [INFO    ] main — [HK.02600] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:31:09,708 [INFO    ] main — [HK.02800] Routing to Aggressive ETF Strategy (Grid+Trend)
+2026-03-23 15:31:09,708 [INFO    ] main — [HK.02800] Signal: BUY — 首仓: RSI极度超卖(17.9) (Sellable: 0.0, Score: 82.1)
+2026-03-23 15:31:11,007 [INFO    ] main — [HK.02823] Routing to Aggressive ETF Strategy (Grid+Trend)
+2026-03-23 15:31:11,007 [INFO    ] main — [HK.02823] Signal: BUY — 首仓: RSI极度超卖(23.3) (Sellable: 0.0, Score: 76.7)
+2026-03-23 15:31:12,202 [INFO    ] main — [HK.02828] Routing to Aggressive ETF Strategy (Grid+Trend)
+2026-03-23 15:31:12,203 [INFO    ] main — [HK.02828] Signal: BUY — 首仓: RSI极度超卖(17.8) (Sellable: 0.0, Score: 82.2)
+2026-03-23 15:31:13,275 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.931s
+2026-03-23 15:31:13,495 [INFO    ] main — [HK.03088] Routing to Standard Stock Strategy (MTF)
+2026-03-23 15:31:13,496 [INFO    ] main — [HK.03088] Signal: HOLD — 无明确可执行信号 (观望/持仓) (Sellable: 0.0, Score: 0.0)
+2026-03-23 15:31:13,651 [INFO    ] engine.portfolio — [HK.02828] Skipped BUY (Slot Limit Reached: 27/3)
+2026-03-23 15:31:13,651 [INFO    ] engine.portfolio — [HK.02800] Skipped BUY (Slot Limit Reached: 27/3)
+2026-03-23 15:31:13,651 [INFO    ] engine.portfolio — [HK.02823] Skipped BUY (Slot Limit Reached: 27/3)
+2026-03-23 15:31:13,659 [INFO    ] scheduler — === HK-Share Market Job Finished (Elapsed: 41.5s) ===
+2026-03-23 15:31:19,927 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.646s
+2026-03-23 15:31:26,610 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.677s
+2026-03-23 15:31:33,305 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.693s
+2026-03-23 15:31:39,909 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.598s
+2026-03-23 15:31:46,572 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.662s
+2026-03-23 15:31:53,076 [INFO    ] scheduler — [Batch Writer] Flushed 19 updates in 1.502s
+2026-03-23 15:31:58,537 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 7 for ATR stop-loss. Cache size: 57
+2026-03-23 15:31:58,634 [INFO    ] scheduler — [RealTime Stats] Updates: 14186, Batch writes: 127, Pending: 3, Cache: 57
+2026-03-23 15:31:59,721 [INFO    ] scheduler — [Batch Writer] Flushed 24 updates in 1.639s
+2026-03-23 15:32:06,212 [INFO    ] scheduler — [Batch Writer] Flushed 20 updates in 1.488s
+2026-03-23 15:32:12,812 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.596s
+2026-03-23 15:32:19,275 [INFO    ] scheduler — [Batch Writer] Flushed 19 updates in 1.460s
+2026-03-23 15:32:25,923 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.642s
+2026-03-23 15:32:32,463 [INFO    ] scheduler — [Batch Writer] Flushed 19 updates in 1.534s
+2026-03-23 15:32:39,119 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.651s
+2026-03-23 15:32:45,729 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.607s
+2026-03-23 15:32:52,395 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.660s
+2026-03-23 15:32:58,963 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.564s
+2026-03-23 15:32:59,049 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 7 for ATR stop-loss. Cache size: 57
+2026-03-23 15:32:59,151 [INFO    ] scheduler — [RealTime Stats] Updates: 15191, Batch writes: 137, Pending: 14, Cache: 57
+2026-03-23 15:33:05,432 [INFO    ] scheduler — [Batch Writer] Flushed 19 updates in 1.462s
+2026-03-23 15:33:11,880 [INFO    ] scheduler — [Batch Writer] Flushed 18 updates in 1.443s
+2026-03-23 15:33:18,693 [INFO    ] scheduler — [Batch Writer] Flushed 25 updates in 1.807s
+2026-03-23 15:33:25,390 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.691s
+2026-03-23 15:33:31,948 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.553s
+2026-03-23 15:33:38,611 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.657s
+2026-03-23 15:33:45,229 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.615s
+2026-03-23 15:33:51,762 [INFO    ] scheduler — [Batch Writer] Flushed 21 updates in 1.528s
+2026-03-23 15:33:58,236 [INFO    ] scheduler — [Batch Writer] Flushed 19 updates in 1.473s
+2026-03-23 15:33:59,554 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 7 for ATR stop-loss. Cache size: 57
+2026-03-23 15:33:59,653 [INFO    ] scheduler — [RealTime Stats] Updates: 16341, Batch writes: 146, Pending: 17, Cache: 57
+2026-03-23 15:34:04,598 [INFO    ] scheduler — [Batch Writer] Flushed 18 updates in 1.355s
+2026-03-23 15:34:11,416 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.813s
+2026-03-23 15:34:18,131 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.709s
+2026-03-23 15:34:24,680 [INFO    ] scheduler — [Batch Writer] Flushed 20 updates in 1.549s
+2026-03-23 15:34:31,403 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.717s
+2026-03-23 15:34:38,030 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.624s
+2026-03-23 15:34:44,590 [INFO    ] scheduler — [Batch Writer] Flushed 20 updates in 1.557s
+2026-03-23 15:34:51,099 [INFO    ] scheduler — [Batch Writer] Flushed 19 updates in 1.507s
+2026-03-23 15:34:57,598 [INFO    ] scheduler — [Batch Writer] Flushed 18 updates in 1.492s
+2026-03-23 15:35:00,052 [INFO    ] scheduler — [RealTime] Monitoring 57 active assets, checking 7 for ATR stop-loss. Cache size: 57
+2026-03-23 15:35:00,150 [INFO    ] scheduler — [RealTime Stats] Updates: 17395, Batch writes: 155, Pending: 18, Cache: 57
+2026-03-23 15:35:04,249 [INFO    ] scheduler — [Batch Writer] Flushed 23 updates in 1.646s
+2026-03-23 15:35:10,860 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.609s
+2026-03-23 15:35:17,549 [INFO    ] scheduler — [Batch Writer] Flushed 22 updates in 1.684s
+2026-03-23 15:35:24,252 [INFO    ] scheduler — [Batch Writer] Flushed 24 updates in 1.697s
+2026-03-23 15:35:30,668 [INFO    ] scheduler — [Batch Writer] Flushed 19 updates in 1.408s
