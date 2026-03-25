@@ -1,7 +1,7 @@
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import QueuePool, NullPool
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from dotenv import load_dotenv
 
@@ -19,20 +19,25 @@ DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB
 # Async Format: mysql+aiomysql://user:password@host:port/dbname
 ASYNC_DATABASE_URL = f"mysql+aiomysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
-# Sync Engine
+# Sync Engine with QueuePool for concurrency resilience
+# This is safe because thread-local pooling handles multi-threading fine
 engine = create_engine(
     DATABASE_URL,
     echo=False,
-    poolclass=NullPool
+    poolclass=QueuePool,
+    pool_size=10,
+    max_overflow=20,
+    pool_timeout=30,
+    pool_recycle=1800
 )
 
-# Async Engine
-# Using NullPool for async_engine to avoid "attached to a different loop" errors
-# when asyncio.run() creates new event loops in different threads/tasks.
+# Async Engine MUST use NullPool when invoked from schedule/threading
+# Because asyncio.run() creates a NEW event loop every time the scheduler triggers a job.
+# If we use a connection pool, connections get bound to the OLD dead loop, causing "attached to a different loop" error.
 async_engine = create_async_engine(
     ASYNC_DATABASE_URL,
     echo=False,
-    poolclass=NullPool,
+    poolclass=NullPool
 )
 
 # Session Local classes

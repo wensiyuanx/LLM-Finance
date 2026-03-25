@@ -5,7 +5,7 @@ global:
   incremental_fetch_overlap_days: 10
   slippage_perc: 0.002
   commission: 0.001
-  max_concurrent_assets: 3      # 全局最大允许同时持仓的标的数量（避免小资金下网格没钱加仓）
+  max_concurrent_assets: 8      # 全局最大允许同时持仓的标的数量（避免小资金下网格没钱加仓）
 
 strategies:
   # 杠杆 ETF 专属动量防耗损策略 (lev_etf_logic.py)

@@ -322,6 +322,7 @@ class ATRStopLossHandler(StockQuoteHandlerBase):
 
     def _trigger_sell(self, code, price, reason):
         """Execute a mock sell for the real-time trigger"""
+        import asyncio
         from engine.trade_lock import GlobalTradeLock
         with GlobalTradeLock._lock:  # Acquire the global lock to prevent main bot from conflicting
             logger.info(f"[RealTime Exec] Executing SELL for {code} at {price} due to {reason}")
@@ -343,14 +344,14 @@ class ATRStopLossHandler(StockQuoteHandlerBase):
                         return
                         
                     executor = OrderExecutor(db_session=session, futu_client=None, simulate=True)
-                    trade_record = executor.execute_trade(
+                    trade_record = asyncio.run(executor.execute_trade(
                         user_id=user_id,
                         code=code,
                         action=TradeAction.SELL,
                         price=price,
                         quantity=qty,
                         reason=reason
-                    )
+                    ))
                     
                     if trade_record:
                         # --- ATOMIC WALLET UPDATE ---

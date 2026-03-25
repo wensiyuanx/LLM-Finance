@@ -1,5 +1,6 @@
 from typing import List, Tuple, Dict
 from database.models import TradeAction, MarketType
+from sqlalchemy import select
 
 class PortfolioManager:
     """
@@ -10,16 +11,66 @@ class PortfolioManager:
     - Overall market exposure
     Calculates specific position sizing (number of shares), accounting for Board Lots and T+1.
     """
-    def __init__(self, db_session, current_cash: float, total_value: float = None, max_position_pct: float = 0.25, max_total_exposure_pct: float = 0.90, max_concurrent_assets: int = 3, active_holdings_count: int = 0):
+    def __init__(self, db_session, market_type: str, config: dict):
         self.db = db_session
-        self.current_cash = current_cash
-        self.total_value = total_value if total_value is not None else current_cash
-        self.max_position_pct = max_position_pct
-        self.max_total_exposure_pct = max_total_exposure_pct
-        self.max_concurrent_assets = max_concurrent_assets
-        self.active_holdings_count = active_holdings_count
+        self.market_type = market_type
+        
+        # --- Config Parsing ---
+        global_config = config.get('global', {})
+        
+        self.max_concurrent_assets = global_config.get('max_concurrent_assets', 5)
+        self.max_total_exposure_pct = global_config.get('max_total_exposure_pct', 0.90)
+        self.max_position_pct = global_config.get('max_position_pct', 0.25)
+        
+        # --- Account State (will be loaded async) ---
+        self.current_cash = 0.0
+        self.holdings_value = 0.0
+        self.active_holdings_count = 0
+        self.total_value = 0.0
 
-    def get_board_lot(self, code: str, market_type: MarketType) -> int:
+    @classmethod
+    async def create(cls, db_session, market_type: str, config: dict):
+        """
+        Async factory method to create PortfolioManager with database queries.
+        """
+        instance = cls(db_session, market_type, config)
+        await instance._load_account_state()
+        return instance
+
+    async def _load_account_state(self):
+        """
+        Load account state from database using async queries.
+        """
+        from database.models import UserWallet, Holding
+        
+        # Load wallet balance
+        stmt = select(UserWallet).filter(UserWallet.market_type == self.market_type)
+        result = await self.db.execute(stmt)
+        wallet = result.scalar_one_or_none()
+        
+        if not wallet:
+            self.current_cash = 0.0
+        else:
+            self.current_cash = float(wallet.balance)
+            
+        # Load holdings
+        stmt = select(Holding).filter(
+            Holding.market_type == self.market_type,
+            Holding.quantity > 0
+        )
+        result = await self.db.execute(stmt)
+        holdings = result.scalars().all()
+        
+        self.holdings_value = 0.0
+        self.active_holdings_count = len(holdings)
+        for h in holdings:
+            # Prefer last_price if available, fallback to avg_cost
+            price = float(h.last_price) if getattr(h, 'last_price', None) and h.last_price > 0 else float(h.avg_cost)
+            self.holdings_value += float(h.quantity) * price
+            
+        self.total_value = self.current_cash + self.holdings_value
+
+    async def get_board_lot(self, code: str, market_type: MarketType) -> int:
         """
         Retrieves the board lot size for a stock, preferring cached values.
         """
@@ -33,9 +84,11 @@ class PortfolioManager:
         from database.models import AssetMonitor
         from sqlalchemy import select
         
-        # This is a bit slow because it's a sync call inside a sync method, 
-        # but PM is created per market run anyway.
-        asset = self.db.query(AssetMonitor).filter(AssetMonitor.code == code).first()
+        # Async query to fetch asset
+        stmt = select(AssetMonitor).filter(AssetMonitor.code == code)
+        result = await self.db.execute(stmt)
+        asset = result.scalar_one_or_none()
+        
         if asset and asset.board_lot and asset.board_lot > 0:
             self.board_lots[code] = asset.board_lot
             return asset.board_lot
@@ -54,7 +107,7 @@ class PortfolioManager:
                     # Cache back to DB if possible
                     if asset:
                         asset.board_lot = lot_size
-                        self.db.commit()
+                        await self.db.commit()
                     return lot_size
         except Exception as e:
             import logging
@@ -63,7 +116,7 @@ class PortfolioManager:
             
         return 100 # Fallback
 
-    def evaluate_signals(self, signals_context: List[Dict]) -> List[dict]:
+    async def evaluate_signals(self, signals_context: List[Dict]) -> List[dict]:
         """
         Takes context from strategy and filter/sizes them.
         signals_context: list of dicts with {code, market_type, action, price, sellable_qty, reason, score}
@@ -164,7 +217,7 @@ class PortfolioManager:
                 # --- Global Exposure Check ---
                 remaining_exposure_quota = max_allowed_held_val - current_held_val
                 if remaining_exposure_quota <= 0:
-                    # Global limit reached
+                    # Global exposure limit reached
                     continue
                 
                 # Allocation must not exceed global quota
@@ -175,16 +228,29 @@ class PortfolioManager:
                 # Get board lot from context or DB or Futu
                 board_lot = ctx.get('board_lot')
                 if not board_lot:
-                    board_lot = self.get_board_lot(ctx['code'], ctx['market_type'])
+                    board_lot = await self.get_board_lot(ctx['code'], ctx['market_type'])
                 
                 min_cost = ctx['price'] * board_lot
                 
+                # --- Dynamic Slot Merging for High-Priced Assets ---
+                if available_to_allocate < min_cost:
+                    # If a single slot isn't enough, see if we can "borrow" from empty slots
+                    empty_slots = self.max_concurrent_assets - current_active_holdings
+                    if empty_slots > 0:
+                        # Max borrow up to what's actually in cash, but limit by empty slots
+                        max_borrowable = empty_slots * slot_value
+                        if (available_to_allocate + max_borrowable) >= min_cost and self.current_cash >= min_cost:
+                            import logging
+                            logging.getLogger(__name__).info(
+                                f"[{ctx['code']}] Dynamic Slot Merge: Borrowing from {empty_slots} empty slots to meet min cost {min_cost:.2f}"
+                            )
+                            available_to_allocate = min(min_cost * 1.05, self.current_cash) # Allocate just enough for 1 lot + buffer
+
                 # Cannot buy if available allocation is smaller than 1 lot
                 if available_to_allocate < min_cost:
                     import logging
                     logging.getLogger(__name__).warning(
-                        f"[{ctx['code']}] Skipped BUY (Insufficient allocation: {available_to_allocate:.2f} < 1 lot cost {min_cost:.2f}). "
-                        f"Consider increasing total_value or reducing max_concurrent_assets."
+                        f"[{ctx['code']}] Skipped BUY (Insufficient allocation: {available_to_allocate:.2f} < 1 lot cost {min_cost:.2f})."
                     )
                     continue
                     

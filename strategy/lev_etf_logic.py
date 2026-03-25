@@ -95,7 +95,17 @@ def generate_leveraged_etf_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = 
         
         above_trend = daily_trend_up or (latest.get('SMA_50', 0) > 0 and current_price > latest['SMA_50'])
         
-        if ma_bullish and macd_bullish and volume_confirmed and rsi_ok and strong_trend and above_trend:
-            return TradeAction.BUY, "动量突破入场", 80.0, True
+        # OBV 量价确认 (资金真实流入)
+        obv_confirmed = True
+        if 'OBV' in latest and 'OBV_SMA_20' in latest and pd.notna(latest['OBV_SMA_20']):
+            if latest['OBV'] < latest['OBV_SMA_20']:
+                obv_confirmed = False
+        
+        if ma_bullish and macd_bullish and volume_confirmed and rsi_ok and strong_trend and above_trend and obv_confirmed:
+            # 动态动量打分
+            adx_score = latest.get('ADX_14', 20)
+            roc_score = latest.get('ROC_20', 0) * 100
+            momentum_score = 60 + adx_score + max(0, roc_score)
+            return TradeAction.BUY, "动量突破入场 (量价齐升)", momentum_score, True
             
     return TradeAction.HOLD, "无杠杆策略信号", 0.0, False

@@ -7,12 +7,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 class OrderExecutor:
-    def __init__(self, db_session: Session, futu_client=None, simulate=True):
+    def __init__(self, db_session, futu_client=None, simulate=True):
         self.db = db_session
         self.futu = futu_client
         self.simulate = simulate
 
-    def execute_trade(self, user_id: int, code: str, action: TradeAction, price: float, quantity: float, reason: str, is_trend_entry: bool = False):
+    async def execute_trade(self, user_id: int, code: str, action: TradeAction, price: float, quantity: float, reason: str, is_trend_entry: bool = False):
         """
         Executes a trade order and logs it to the database with user_id.
         """
@@ -67,7 +67,7 @@ class OrderExecutor:
         # Committing here breaks transaction atomicity for the caller 
         # (who needs to update Wallet and Holding in the same transaction).
         # We flush to get the ID instead.
-        self.db.flush()
+        await self.db.flush()
 
         logger.info(f"[{status}] Executed {action.name} {quantity} shares of {code} at {price}. Reason: {reason}")
         return trade_record

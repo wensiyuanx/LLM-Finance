@@ -55,6 +55,12 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
         
     # Calculate On-Balance Volume (OBV) and Volume SMA
     df['OBV'] = ta.obv(close=df['close'], volume=df['volume'])
+    if df['OBV'] is not None and not df['OBV'].empty:
+        df['OBV_SMA_20'] = ta.sma(df['OBV'], length=20)
     df['VOL_SMA_5'] = ta.sma(df['volume'], length=5)
+
+    # Calculate Rate of Change (ROC) for momentum
+    df['ROC_10'] = ta.roc(df['close'], length=10)
+    df['ROC_20'] = ta.roc(df['close'], length=20)
 
     return df

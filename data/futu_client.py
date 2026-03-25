@@ -84,6 +84,20 @@ class FutuClient:
         print(f"[FutuClient] {code}: fetched {len(result)} candles ({start_date} → {end_date})")
         return result
 
+    def get_realtime_quote(self, code: str):
+        """
+        Fetch real-time snapshot quote (including Bid 1 / Ask 1) for a specific asset.
+        """
+        if not self.quote_ctx:
+            return None
+            
+        ret, data = self.quote_ctx.get_market_snapshot([code])
+        if ret == RET_OK and not data.empty:
+            return data.iloc[0].to_dict()
+        else:
+            logger.warning(f"Failed to get realtime quote for {code}: {data}")
+            return None
+
 if __name__ == "__main__":
     # Test connection
     client = FutuClient()

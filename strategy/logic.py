@@ -122,12 +122,21 @@ def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_
             if 'SMA_20' in latest and 'SMA_60' in latest and 'SMA_120' in latest:
                 if latest['SMA_20'] > latest['SMA_60'] > (latest['SMA_120'] if pd.notna(latest['SMA_120']) else 0):
                     if current_price > latest['SMA_20'] and 48 < latest['RSI_14'] < 72:
-                        if current_position == 0:
-                            buy_signals.append("趋势确认强力追入")
-                            return TradeAction.BUY, "趋势追入: 均线多头且RSI适中", score + 10.0, True
-                        elif not is_trend_position:
-                            # PROMOTE to trend
-                            return TradeAction.HOLD, "持仓晋升: 当前行情进入趋势模式", 0.0, True
+                        obv_confirmed = True
+                        if 'OBV' in latest and 'OBV_SMA_20' in latest and pd.notna(latest['OBV_SMA_20']):
+                            if latest['OBV'] < latest['OBV_SMA_20']:
+                                obv_confirmed = False
+                                
+                        if obv_confirmed:
+                            if current_position == 0:
+                                buy_signals.append("趋势确认强力追入")
+                                adx_val = latest.get('ADX_14', 20)
+                                roc_val = latest.get('ROC_20', 0)
+                                momentum_score = 50 + adx_val + max(0, roc_val * 100)
+                                return TradeAction.BUY, "趋势追入: 均线多头且量价齐升", momentum_score, True
+                            elif not is_trend_position:
+                                # PROMOTE to trend
+                                return TradeAction.HOLD, "持仓晋升: 当前行情进入趋势模式", 0.0, True
 
     # SELL LOGIC (Can trigger regardless of daily trend to protect capital)
     # 1. Moving Average Death Cross
@@ -162,6 +171,7 @@ def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_
         return TradeAction.HOLD, f"信号冲突 (买:{len(buy_signals)}, 卖:{len(sell_signals)}), 暂时观望", 0.0, False
 
     score = 0.0
+    # Base score on RSI for dip buying, but we will adjust for momentum
     if 'RSI_14' in latest and pd.notna(latest['RSI_14']):
         score = 100 - latest['RSI_14']
 
@@ -170,7 +180,13 @@ def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_
         if len(buy_signals) >= 2:
             return TradeAction.BUY, "强买入信号: " + " + ".join(buy_signals), score, False
         elif len(buy_signals) == 1:
-            if "均线金叉" in buy_signals[0] or "RSI超卖" in buy_signals[0]:
+            if "均线金叉" in buy_signals[0]:
+                # For moving average crossovers, use momentum score instead of RSI oversold score
+                adx_val = latest.get('ADX_14', 20)
+                roc_val = latest.get('ROC_20', 0)
+                mom_score = 40 + adx_val + max(0, roc_val * 100)
+                return TradeAction.BUY, "买入信号: " + buy_signals[0], max(score, mom_score), False
+            elif "RSI超卖" in buy_signals[0]:
                 return TradeAction.BUY, "买入信号: " + buy_signals[0], score, False
 
     # Sell: only if holding
@@ -317,9 +333,19 @@ def generate_grid_trend_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = Non
         if sma20 > sma60 > sma120_val and current_price > sma20:
             if 'RSI_14' in latest and 48 < latest['RSI_14'] < 85: # 放宽 RSI 到 85
                 if 'BOLL_MID' in latest and current_price > latest['BOLL_MID']:
-                    if current_position == 0:
-                        return TradeAction.BUY, f"趋势追入 (激进): 均线多头, RSI={latest['RSI_14']:.1f}", score + 15.0, True
-                    elif not is_trend_position:
-                        return TradeAction.HOLD, f"持仓晋升 (激进): 开启趋势追踪模式, RSI={latest['RSI_14']:.1f}", 0.0, True
+                    obv_confirmed = True
+                    if 'OBV' in latest and 'OBV_SMA_20' in latest and pd.notna(latest['OBV_SMA_20']):
+                        if latest['OBV'] < latest['OBV_SMA_20']:
+                            obv_confirmed = False
+                            
+                    if obv_confirmed:
+                        if current_position == 0:
+                            # 动态动能打分：取代原先的低分 (100-RSI + 15)
+                            adx_val = latest.get('ADX_14', 20)
+                            roc_val = latest.get('ROC_20', 0)
+                            momentum_score = 60 + adx_val + max(0, roc_val * 100)
+                            return TradeAction.BUY, f"趋势追入 (激进): 均线多头且量价齐升, RSI={latest['RSI_14']:.1f}", momentum_score, True
+                        elif not is_trend_position:
+                            return TradeAction.HOLD, f"持仓晋升 (激进): 开启趋势追踪模式, RSI={latest['RSI_14']:.1f}", 0.0, True
 
     return TradeAction.HOLD, "无网格/趋势执行信号", 0.0, False
