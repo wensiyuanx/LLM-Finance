@@ -97,13 +97,16 @@ def run_backtest(code, cash=100000.0, start_date="2025-01-01"):
     Invokes the Backtrader strategy with the specified code.
     """
     import backtrader as bt
-    from scripts.backtest.backtrader_strategy import MultiTimeframeStrategy
+    from scripts.backtest.standard_stock_mtf_strategy import StandardStockMTFStrategy
+    
+    cerebro = bt.Cerebro()
+    curr_market = 'HK' if 'HK' in code.upper() else 'SZ'
     
     from_date = None
     if start_date:
         from_date = datetime.strptime(start_date, "%Y-%m-%d")
         
-    cerebro.addstrategy(MultiTimeframeStrategy, market=curr_market, start_date=from_date)
+    cerebro.addstrategy(StandardStockMTFStrategy, market=curr_market, start_date=from_date)
     
     logger.info(f"Loading data for {code} from database...")
     

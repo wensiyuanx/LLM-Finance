@@ -93,7 +93,7 @@ def run_backtest(code, cash=100000.0, start_date=None):
     Invokes the Backtrader ETF Grid strategy with the specified code.
     """
     import backtrader as bt
-    from scripts.backtest.etf_grid_strategy import ETFGridMeanReversionStrategy
+    from scripts.backtest.etf_grid_trend_live_strategy import ETFGridTrendLiveStrategy
     
     from_date = None
     if start_date:
@@ -101,7 +101,7 @@ def run_backtest(code, cash=100000.0, start_date=None):
         
     cerebro = bt.Cerebro()
     curr_market = 'HK' if code.startswith('HK.') else 'A'
-    cerebro.addstrategy(ETFGridMeanReversionStrategy, market=curr_market, start_date=from_date)
+    cerebro.addstrategy(ETFGridTrendLiveStrategy, market=curr_market, start_date=from_date)
     
     logger.info(f"Loading data for {code} from database...")
     
@@ -182,7 +182,7 @@ def run_backtest(code, cash=100000.0, start_date=None):
                 buy_markers = [m for m in buy_markers if m[0] >= display_start]
             if buy_markers:
                 buy_dates, buy_prices = zip(*buy_markers)
-                ax_chart.scatter(buy_dates, buy_prices, marker='^', color='green', s=100, label='买入', zorder=5)
+                ax_chart.scatter(list(buy_dates), list(buy_prices), marker='^', color='green', s=100, label='买入', zorder=5)
             
         if strategy_instance.sell_markers:
             sell_markers = strategy_instance.sell_markers
@@ -190,7 +190,7 @@ def run_backtest(code, cash=100000.0, start_date=None):
                 sell_markers = [m for m in sell_markers if m[0] >= display_start]
             if sell_markers:
                 sell_dates, sell_prices = zip(*sell_markers)
-                ax_chart.scatter(sell_dates, sell_prices, marker='v', color='red', s=100, label='卖出', zorder=5)
+                ax_chart.scatter(list(sell_dates), list(sell_prices), marker='v', color='red', s=100, label='卖出', zorder=5)
         
         # Calculations for Title
         return_pct = (final_value - initial_value) / initial_value * 100

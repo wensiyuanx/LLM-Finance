@@ -72,7 +72,7 @@ def fetch_and_save_data(code, days=550):
 
 def run_backtest(code, cash=100000.0, start_date=None):
     import backtrader as bt
-    from scripts.backtest.lev_etf_strategy import LeveragedETFMomentumStrategy
+    from scripts.backtest.lev_etf_live_strategy import LeveragedETFLiveStrategy
     
     cerebro = bt.Cerebro()
     curr_market = 'HK' if 'HK' in code.upper() else 'SZ'
@@ -81,7 +81,7 @@ def run_backtest(code, cash=100000.0, start_date=None):
     if start_date:
         from_date = datetime.strptime(start_date, "%Y-%m-%d")
         
-    cerebro.addstrategy(LeveragedETFMomentumStrategy, market=curr_market, start_date=from_date)
+    cerebro.addstrategy(LeveragedETFLiveStrategy, market=curr_market, start_date=from_date)
     
     logger.info(f"Loading data for {code} from database...")
     
