@@ -313,13 +313,14 @@ class RateLimiter:
         self.per = per
         self.allowance = float(rate)
         self.last_check = time.monotonic()
-        self.lock = None
+        self._locks = {}
 
     async def wait(self):
-        if self.lock is None:
-            self.lock = asyncio.Lock()
+        loop = asyncio.get_running_loop()
+        if loop not in self._locks:
+            self._locks[loop] = asyncio.Lock()
             
-        async with self.lock:
+        async with self._locks[loop]:
             while True:
                 current = time.monotonic()
                 elapsed = current - self.last_check
@@ -338,8 +339,8 @@ class RateLimiter:
                 await asyncio.sleep(wait_time)
 
 # Futu API Rate Limit: 60 requests / 30 seconds
-futu_rate_limiter = RateLimiter(rate=20, per=30.0) # strictly limit to avoid crossing the actual 60/30s boundary when combined with other requests
-api_semaphore = asyncio.Semaphore(5) # Reduce concurrency further to prevent bursts
+# We use a strict 1 request per 0.6 seconds to completely eliminate bursting and prevent hitting the rate limit even after script restarts.
+futu_rate_limiter = RateLimiter(rate=1, per=0.6)
 
 async def _rate_limited_fetch(futu, code, start_date, end_date, ktype):
     """Wrapper to apply rate limiting before the API call"""
@@ -358,7 +359,7 @@ async def _rate_limited_fetch(futu, code, start_date, end_date, ktype):
                     continue
             raise e
 
-async def fetch_and_compute(futu, asset, start_date_fetch, end_date):
+async def fetch_and_compute(futu, asset, start_date_fetch, end_date, api_semaphore):
     """Async K-line fetching and indicator calculation."""
     df_day = None
     df_60m = None
@@ -458,10 +459,17 @@ async def run_trading_bot(market_filter=None, force=False):
                 wallet.total_assets = pm.total_value
                 await db_session.commit()
                 
+                # Fetch Market Regime ONCE per market type
+                await futu_rate_limiter.wait()
+                market_regime = await asyncio.to_thread(RegimeDetector.get_market_regime, market_type.name, futu)
+                
                 signals_context = []
                 asset_stats = {} 
                 
                 logger.info(f"Fetching data concurrently for {len(assets)} assets...")
+                
+                # Create a semaphore bound to the current event loop
+                current_api_semaphore = asyncio.Semaphore(5)
                 
                 # Prepare concurrent fetch tasks
                 fetch_coroutines = []
@@ -478,7 +486,7 @@ async def run_trading_bot(market_filter=None, force=False):
                     else:
                         start_date_fetch = start_date
                     
-                    fetch_coroutines.append(fetch_and_compute(futu, a, start_date_fetch, end_date))
+                    fetch_coroutines.append(fetch_and_compute(futu, a, start_date_fetch, end_date, current_api_semaphore))
                     
                 # Execute concurrently
                 fetch_results = await asyncio.gather(*fetch_coroutines, return_exceptions=True)
@@ -543,9 +551,7 @@ async def run_trading_bot(market_filter=None, force=False):
                         is_pre_close = True
                         
                     # 1. Detect Market Regime
-                    # Apply rate limiter explicitly before calling regime detector
-                    await futu_rate_limiter.wait()
-                    market_regime = RegimeDetector.get_market_regime(market_type.name, futu_client=futu)
+                    # Regime is now fetched once per market type before the loop
                     
                     # 2. Get ML Prediction Probability
                     ml_prob = 0.5

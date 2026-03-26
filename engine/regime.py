@@ -38,12 +38,6 @@ class RegimeDetector:
             own_client = True
         
         try:
-            # Check if futu_client is passed and apply rate limiting if necessary
-            # We don't have direct access to the rate limiter here, so we do a simple sleep
-            # to avoid bursting immediately after the main fetch loop
-            import time
-            time.sleep(2.0)
-            
             # Fetch ~400 calendar days of data to compute 200-SMA
             start_date = (datetime.now() - timedelta(days=400)).strftime("%Y-%m-%d")
             
