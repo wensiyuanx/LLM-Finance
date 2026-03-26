@@ -138,9 +138,18 @@ class ATRStopLossHandler(StockQuoteHandlerBase):
         # Performance monitoring
         self.update_count = 0
         self.batch_write_count = 0
+        
+        # Dedicated event loop for async operations
+        self.async_loop = asyncio.new_event_loop()
+        self.async_thread = threading.Thread(target=self._run_async_loop, daemon=True)
+        self.async_thread.start()
 
         self.refresh_state()
         self.start_batch_writer()
+
+    def _run_async_loop(self):
+        asyncio.set_event_loop(self.async_loop)
+        self.async_loop.run_forever()
 
     def refresh_state(self):
         """Reload holdings and monitored assets from database and update cache"""
@@ -321,48 +330,58 @@ class ATRStopLossHandler(StockQuoteHandlerBase):
         return RET_OK, data
 
     def _trigger_sell(self, code, price, reason):
+        """Submit the async sell task to the background event loop."""
+        asyncio.run_coroutine_threadsafe(self._async_trigger_sell(code, price, reason), self.async_loop)
+
+    async def _async_trigger_sell(self, code, price, reason):
         """Execute a mock sell for the real-time trigger"""
-        import asyncio
         from engine.trade_lock import GlobalTradeLock
+        from database.db import AsyncSessionLocal
+        from sqlalchemy import update, select
         with GlobalTradeLock._lock:  # Acquire the global lock to prevent main bot from conflicting
             logger.info(f"[RealTime Exec] Executing SELL for {code} at {price} due to {reason}")
             from engine.executor import OrderExecutor
             from database.models import TradeAction, UserWallet, Holding
-            session = SessionLocal()
-            try:
-                # Still use self.lock for internal state protection
-                with self.lock:
-                    if code not in self.holdings:
-                        return
-                    holding_mem = self.holdings[code]
-                    qty = holding_mem.sellable_quantity
-                    user_id = holding_mem.user_id
+            
+            # Still use self.lock for internal state protection
+            with self.lock:
+                if code not in self.holdings:
+                    return
+                holding_mem = self.holdings[code]
+                qty = holding_mem.sellable_quantity
+                user_id = holding_mem.user_id
+                
+                if qty <= 0:
+                    logger.warning(f"[RealTime Exec] Cannot sell {code}, sellable quantity is 0 (T+1 locked?)")
+                    del self.holdings[code]
+                    return
+                
+                del self.holdings[code]
                     
-                    if qty <= 0:
-                        logger.warning(f"[RealTime Exec] Cannot sell {code}, sellable quantity is 0 (T+1 locked?)")
-                        del self.holdings[code]
-                        return
-                        
+            async with AsyncSessionLocal() as session:
+                try:
                     executor = OrderExecutor(db_session=session, futu_client=None, simulate=True)
-                    trade_record = asyncio.run(executor.execute_trade(
+                    trade_record = await executor.execute_trade(
                         user_id=user_id,
                         code=code,
                         action=TradeAction.SELL,
                         price=price,
                         quantity=qty,
                         reason=reason
-                    ))
+                    )
                     
                     if trade_record:
                         # --- ATOMIC WALLET UPDATE ---
-                        from sqlalchemy import update
                         stmt = update(UserWallet).where(
                             UserWallet.user_id == user_id,
                             UserWallet.market_type == holding_mem.market_type
                         ).values(balance=UserWallet.balance + (qty * price))
-                        session.execute(stmt)
+                        await session.execute(stmt)
                         
-                        holding_db = session.query(Holding).filter(Holding.id == holding_mem.id).first()
+                        stmt_h = select(Holding).filter(Holding.id == holding_mem.id)
+                        res = await session.execute(stmt_h)
+                        holding_db = res.scalar_one_or_none()
+
                         if holding_db:
                             holding_db.quantity -= qty
                             holding_db.sellable_quantity -= qty
@@ -374,15 +393,11 @@ class ATRStopLossHandler(StockQuoteHandlerBase):
                             else:
                                 holding_db.tranches_count = max(1, holding_db.tranches_count - 1)
                                 
-                        session.commit()
+                        await session.commit()
                         logger.info(f"[RealTime Exec] DB Updated. Sold {qty} shares of {code}.")
-                    
-                    del self.holdings[code]
-            except Exception as e:
-                session.rollback()
-                logger.error(f"[RealTime Exec] DB Error: {e}")
-            finally:
-                session.close()
+                except Exception as e:
+                    await session.rollback()
+                    logger.error(f"[RealTime Exec] DB Error: {e}")
 
     def get_performance_stats(self):
         """Get performance statistics for monitoring"""

@@ -12,7 +12,7 @@ class OrderExecutor:
         self.futu = futu_client
         self.simulate = simulate
 
-    async def execute_trade(self, user_id: int, code: str, action: TradeAction, price: float, quantity: float, reason: str, is_trend_entry: bool = False):
+    async def execute_trade(self, user_id: int, code: str, action: TradeAction, price: float, quantity: float, reason: str, is_trend_entry: bool = False, avg_cost: float = 0.0):
         """
         Executes a trade order and logs it to the database with user_id.
         """
@@ -21,6 +21,12 @@ class OrderExecutor:
 
         order_id = str(uuid.uuid4())
         status = "SUBMITTED"
+        
+        realized_pnl = 0.0
+        pnl_pct = 0.0
+        if action == TradeAction.SELL and avg_cost > 0:
+            realized_pnl = (price - avg_cost) * quantity
+            pnl_pct = (price - avg_cost) / avg_cost
 
         if not self.simulate:
             # Real-order path: guard against unconfigured trade_ctx to prevent
@@ -59,7 +65,9 @@ class OrderExecutor:
             quantity=quantity,
             order_id=order_id,
             status=status,
-            reason=reason
+            reason=reason,
+            realized_pnl=realized_pnl,
+            pnl_pct=pnl_pct
         )
         self.db.add(trade_record)
         

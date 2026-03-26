@@ -49,20 +49,21 @@ def generate_leveraged_etf_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = 
         
         if highest_price > avg_cost:
             # 阶梯止盈：利润到达一定比例后启动
-            if 0.025 <= profit_pct < 0.05:
-                # 震荡市收紧至 2.5%，趋势市放宽至 4%
-                trail_pct = 0.975 if not is_strong_trend else 0.96
+            # 杠杆ETF波动大，适当放宽止盈触发线，让利润奔跑
+            if 0.04 <= profit_pct < 0.08:
+                # 震荡市收紧至 3%，趋势市放宽至 5%
+                trail_pct = 0.97 if not is_strong_trend else 0.95
                 if current_price < highest_price * trail_pct:
                     return TradeAction.SELL, f"杠杆风控: 阶段性止盈锁定, 收益 {profit_pct*100:.1f}%", 0.0, False
-            elif profit_pct >= 0.05:
-                # 大利阶段：趋势强则用 ATR 跟踪，否则固定 4%
+            elif profit_pct >= 0.08:
+                # 大利阶段：趋势强则用 2倍ATR 跟踪，否则固定回撤 5%
                 if is_strong_trend:
-                    trailing_stop = highest_price - (current_atr * config["atr_trail_mult"])
+                    trailing_stop = highest_price - (current_atr * 2.0)
                     if current_price <= trailing_stop:
                         return TradeAction.SELL, f"杠杆风控: 触发动态跟踪止盈, 收益 {profit_pct*100:.1f}%", 0.0, False
                 else:
-                    if current_price < highest_price * 0.96:
-                        return TradeAction.SELL, f"杠杆风控: 趋势转弱止盈 (4%), 收益 {profit_pct*100:.1f}%", 0.0, False
+                    if current_price < highest_price * 0.95:
+                        return TradeAction.SELL, f"杠杆风控: 趋势转弱止盈 (5%), 收益 {profit_pct*100:.1f}%", 0.0, False
 
         # C. 趋势死叉切换
         if 'SMA_5' in latest and 'SMA_20' in latest:
@@ -73,39 +74,59 @@ def generate_leveraged_etf_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = 
             if prev['MACD'] >= 0 and latest['MACD'] < 0:
                 return TradeAction.SELL, "右侧离场: MACD下穿零轴", 0.0, False
 
-    # --- 2. 买入逻辑 (纯右侧动量，放弃左侧补仓) ---
+    # --- 2. 买入逻辑 (动量反转与趋势共振) ---
     if current_position == 0:
-        # 只在趋势确立、放量、且 RSI 不极高时入场
-        # 指标计算
-        ma_bullish = False
-        if 'SMA_5' in latest and 'SMA_20' in latest and 'SMA_50' in latest:
-            if latest['SMA_5'] > latest['SMA_20'] > latest['SMA_50'] and current_price > latest['SMA_5']:
-                ma_bullish = True
+        # 杠杆ETF不能只等最完美的右侧（因为经常错过主升浪），
+        # 应该在“超跌反弹确认”或“均线刚开始多头”时及早介入。
         
-        macd_bullish = False
+        # 信号1：超跌反弹（RSI金叉 + MACD底背离或金叉）
+        rsi_oversold_rebound = False
+        if 'RSI_14' in latest and 'RSI_14' in prev:
+            # RSI从超卖区回升
+            if prev['RSI_14'] < 35 and latest['RSI_14'] > 35:
+                rsi_oversold_rebound = True
+                
+        macd_golden_cross = False
         if 'MACD' in latest and 'MACD_Signal' in latest:
-            macd_bullish = (prev['MACD'] <= prev['MACD_Signal'] and latest['MACD'] > latest['MACD_Signal']) or (latest['MACD'] > 0 and latest['MACD'] > latest['MACD_Signal'])
+            macd_golden_cross = (prev['MACD'] <= prev['MACD_Signal'] and latest['MACD'] > latest['MACD_Signal'])
             
-        volume_confirmed = False
-        if 'VOL_SMA_5' in latest and latest['volume'] > latest['VOL_SMA_5'] * config["volume_surge_mult"]:
-            volume_confirmed = True
+        # 信号2：均线多头排列初期（不需要SMA5>20>50那么苛刻，只要短期趋势向上）
+        short_trend_up = False
+        if 'SMA_5' in latest and 'SMA_20' in latest:
+            short_trend_up = (latest['SMA_5'] > latest['SMA_20'] and current_price > latest['SMA_5'])
             
-        rsi_ok = 'RSI_14' in latest and 50 < latest['RSI_14'] < 75
-        strong_trend = latest.get('ADX_14', 0) > config["adx_min_trend"]
+        # 信号3：放量突破
+        volume_breakout = False
+        if 'VOL_SMA_5' in latest and latest['volume'] > latest['VOL_SMA_5'] * 1.5:
+            volume_breakout = True
+
+        buy_reason = ""
+        score = 0.0
         
-        above_trend = daily_trend_up or (latest.get('SMA_50', 0) > 0 and current_price > latest['SMA_50'])
-        
-        # OBV 量价确认 (资金真实流入)
-        obv_confirmed = True
-        if 'OBV' in latest and 'OBV_SMA_20' in latest and pd.notna(latest['OBV_SMA_20']):
-            if latest['OBV'] < latest['OBV_SMA_20']:
-                obv_confirmed = False
-        
-        if ma_bullish and macd_bullish and volume_confirmed and rsi_ok and strong_trend and above_trend and obv_confirmed:
-            # 动态动量打分
-            adx_score = latest.get('ADX_14', 20)
-            roc_score = latest.get('ROC_20', 0) * 100
-            momentum_score = 60 + adx_score + max(0, roc_score)
-            return TradeAction.BUY, "动量突破入场 (量价齐升)", momentum_score, True
+        # 组合策略 A: 底部反弹确认 (适合抄底)
+        if rsi_oversold_rebound and macd_golden_cross:
+            buy_reason = "底部反弹: RSI回升+MACD金叉"
+            score = 70.0
+            
+        # 组合策略 B: 右侧动量突破 (适合追主升浪)
+        elif short_trend_up and macd_golden_cross and volume_breakout:
+            buy_reason = "动量突破: 均线向上+放量金叉"
+            score = 80.0
+            
+        # 组合策略 C: 强趋势顺势上车
+        elif short_trend_up and latest.get('ADX_14', 0) > 25 and latest.get('RSI_14', 50) < 70:
+            buy_reason = "趋势顺势: ADX强趋势且未超买"
+            score = 75.0
+
+        if buy_reason:
+            # OBV 确认资金没有明显流出即可（放宽限制）
+            if 'OBV' in latest and 'OBV_SMA_20' in latest and pd.notna(latest['OBV_SMA_20']):
+                if latest['OBV'] < latest['OBV_SMA_20'] * 0.95: # 允许5%的误差
+                    buy_reason += " [资金流出警告: 降低得分]"
+                    score -= 20.0
+                    
+            if score >= 60.0:
+                # 杠杆ETF统一视为趋势单处理
+                return TradeAction.BUY, buy_reason, score, True
             
     return TradeAction.HOLD, "无杠杆策略信号", 0.0, False

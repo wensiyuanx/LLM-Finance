@@ -73,6 +73,16 @@ def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_
         if highest_price > 0 and current_price < highest_price * (1 - config.get("trailing_stop_pct", 0.05)) and profit_pct > config.get("trailing_activation_pct", 0.04):
             return TradeAction.SELL, f"触发 {config.get('trailing_stop_pct', 0.05)*100:.0f}% 动态追踪止盈, 锁定收益: {profit_pct*100:.1f}%", 0.0, False
 
+        # 4. Breakeven / Profit Protection Logic (If it went up, don't let it turn into a loss)
+        # Check historical max profit based on highest_price
+        if highest_price > 0 and avg_cost > 0:
+            max_profit_pct = (highest_price - avg_cost) / avg_cost
+            # If profit once reached > 2.5%, raise stop loss to entry price + 0.5%
+            if max_profit_pct >= 0.025:
+                breakeven_price = avg_cost * 1.005
+                if current_price < breakeven_price:
+                    return TradeAction.SELL, f"触发保本护城河 (利润曾达 {max_profit_pct*100:.1f}%), 保本微利离场", 0.0, False
+
     # Trend Regime Filter (Hourly)
     in_downtrend = False
     in_strong_trend = False
@@ -166,9 +176,12 @@ def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_
                 return TradeAction.SELL, "趋势破位止盈 (SMA20<60)", 0.0, False
 
     # Multi-Factor Consensus & Conflict Resolution
-    # Priority 1: If both buy and sell signals are present, stay neutral (HOLD) to avoid volatility noise
-    if len(buy_signals) > 0 and len(sell_signals) > 0:
-        return TradeAction.HOLD, f"信号冲突 (买:{len(buy_signals)}, 卖:{len(sell_signals)}), 暂时观望", 0.0, False
+    # Priority 1: If both buy and sell signals are present, prioritize SELL to protect capital
+    if current_position > 0 and len(sell_signals) > 0:
+        if len(sell_signals) >= 2:
+            return TradeAction.SELL, "强卖出信号 (冲突优选): " + " + ".join(sell_signals), 0.0, False
+        else:
+            return TradeAction.SELL, f"卖出信号 (冲突优选): {sell_signals[0]}", 0.0, False
 
     score = 0.0
     # Base score on RSI for dip buying, but we will adjust for momentum
@@ -176,7 +189,7 @@ def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_
         score = 100 - latest['RSI_14']
 
     # Buy: only if no position
-    if current_position == 0:
+    if current_position == 0 and len(buy_signals) > 0:
         if len(buy_signals) >= 2:
             return TradeAction.BUY, "强买入信号: " + " + ".join(buy_signals), score, False
         elif len(buy_signals) == 1:

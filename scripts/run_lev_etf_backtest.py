@@ -70,7 +70,7 @@ def fetch_and_save_data(code, days=550):
     finally:
         session.close()
 
-def run_backtest(code, cash=100000.0, start_date=None):
+def run_backtest(code, cash=100000.0, start_date=None, end_date=None):
     import backtrader as bt
     from scripts.backtest.lev_etf_live_strategy import LeveragedETFLiveStrategy
     
@@ -85,8 +85,18 @@ def run_backtest(code, cash=100000.0, start_date=None):
     
     logger.info(f"Loading data for {code} from database...")
     
-    query_60m = f"SELECT time_key, open_price as open, high_price as high, low_price as low, close_price as close, volume FROM kline_data WHERE code='{code}' AND timeframe='60m' ORDER BY time_key ASC"
-    query_day = f"SELECT time_key, open_price as open, high_price as high, low_price as low, close_price as close, volume FROM kline_data WHERE code='{code}' AND timeframe='1d' ORDER BY time_key ASC"
+    query_60m = f"SELECT time_key, open_price as open, high_price as high, low_price as low, close_price as close, volume FROM kline_data WHERE code='{code}' AND timeframe='60m'"
+    query_day = f"SELECT time_key, open_price as open, high_price as high, low_price as low, close_price as close, volume FROM kline_data WHERE code='{code}' AND timeframe='1d'"
+    
+    if start_date:
+        query_60m += f" AND time_key >= '{start_date} 00:00:00'"
+        query_day += f" AND time_key >= '{start_date} 00:00:00'"
+    if end_date:
+        query_60m += f" AND time_key <= '{end_date} 23:59:59'"
+        query_day += f" AND time_key <= '{end_date} 23:59:59'"
+        
+    query_60m += " ORDER BY time_key ASC"
+    query_day += " ORDER BY time_key ASC"
     
     raw_conn = engine.raw_connection()
     try:
@@ -224,8 +234,9 @@ if __name__ == "__main__":
     parser.add_argument("code", type=str, help="Stock code (e.g., HK.07226)")
     parser.add_argument("--days", type=int, default=550)
     parser.add_argument("--start_date", type=str, default=None)
+    parser.add_argument("--end_date", type=str, default=None)
     parser.add_argument("--cash", type=float, default=100000.0)
     
     args = parser.parse_args()
-    if fetch_and_save_data(args.code, args.days):
-        run_backtest(args.code, args.cash, start_date=args.start_date)
+    if fetch_and_save_data(args.code, args.days + 60):
+        run_backtest(args.code, args.cash, start_date=args.start_date, end_date=args.end_date)

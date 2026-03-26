@@ -145,15 +145,18 @@ async def get_wallet(db, user_id: int, market_type):
     return result.scalar_one_or_none()
 
 
-async def update_wallet(db, user_id: int, market_type, delta: float):
+async def update_wallet(db, user_id: int, market_type, delta: float, realized_pnl: float = 0.0):
     """Atomic wallet update to prevent race conditions."""
     from sqlalchemy import update
     stmt = update(UserWallet).where(
         UserWallet.user_id == user_id,
         UserWallet.market_type == market_type
-    ).values(balance=UserWallet.balance + delta)
+    ).values(
+        balance=UserWallet.balance + delta,
+        total_pnl=UserWallet.total_pnl + realized_pnl
+    )
     await db.execute(stmt)
-    await db.commit()
+    # commit is handled by the caller to ensure atomicity
 
 
 async def get_holding(db, user_id: int, code: str, market_type) -> Holding:
@@ -223,7 +226,7 @@ async def update_holding_buy(db, holding: Holding, qty: float, price: float, is_
     
     holding.highest_price = max(holding.highest_price, price)
     holding.tranches_count += 1
-    await db.commit()
+    # commit is handled by the caller to ensure atomicity
 
 
 async def update_holding_sell(db, holding: Holding, qty: float):
@@ -238,7 +241,7 @@ async def update_holding_sell(db, holding: Holding, qty: float):
         holding.is_trend = 0
     else:
         holding.tranches_count = max(1, holding.tranches_count - 1)
-    await db.commit()
+    # commit is handled by the caller to ensure atomicity
 
 
 async def rollover_t1_holdings(db_session, user_id=None):
@@ -301,9 +304,59 @@ class StrategyRouter:
                 is_pre_close=is_pre_close
             )
 
+import time
+
+class RateLimiter:
+    """Token bucket rate limiter for FutuOpenD API limits (e.g., 60 requests / 30 seconds)"""
+    def __init__(self, rate: int, per: float):
+        self.rate = rate
+        self.per = per
+        self.allowance = float(rate)
+        self.last_check = time.monotonic()
+        self.lock = None
+
+    async def wait(self):
+        if self.lock is None:
+            self.lock = asyncio.Lock()
+            
+        async with self.lock:
+            while True:
+                current = time.monotonic()
+                elapsed = current - self.last_check
+                self.last_check = current
+                self.allowance += elapsed * (self.rate / self.per)
+                
+                if self.allowance > self.rate:
+                    self.allowance = self.rate
+                    
+                if self.allowance >= 1.0:
+                    self.allowance -= 1.0
+                    return
+                    
+                # Wait until at least 1 token is generated
+                wait_time = (1.0 - self.allowance) * (self.per / self.rate)
+                await asyncio.sleep(wait_time)
+
 # Futu API Rate Limit: 60 requests / 30 seconds
-# Using a semaphore to limit concurrent API requests.
-api_semaphore = asyncio.Semaphore(15)
+futu_rate_limiter = RateLimiter(rate=20, per=30.0) # strictly limit to avoid crossing the actual 60/30s boundary when combined with other requests
+api_semaphore = asyncio.Semaphore(5) # Reduce concurrency further to prevent bursts
+
+async def _rate_limited_fetch(futu, code, start_date, end_date, ktype):
+    """Wrapper to apply rate limiting before the API call"""
+    await futu_rate_limiter.wait()
+    
+    # Add a retry mechanism specifically for rate limits
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            return await asyncio.to_thread(futu.get_historical_klines, code, start_date=start_date, end_date=end_date, ktype=ktype)
+        except Exception as e:
+            if "获取历史K线频率太高" in str(e) or "30秒最多60次" in str(e):
+                if attempt < max_retries - 1:
+                    logger.warning(f"Rate limit hit for {code}, sleeping 10s and retrying...")
+                    await asyncio.sleep(10)
+                    continue
+            raise e
 
 async def fetch_and_compute(futu, asset, start_date_fetch, end_date):
     """Async K-line fetching and indicator calculation."""
@@ -315,11 +368,9 @@ async def fetch_and_compute(futu, asset, start_date_fetch, end_date):
         async with api_semaphore:
             # Concurrent fetch for both timeframes.
             df_day, df_60m = await asyncio.gather(
-                asyncio.to_thread(futu.get_historical_klines, asset.code, start_date=start_date_fetch, end_date=end_date, ktype=KLType.K_DAY),
-                asyncio.to_thread(futu.get_historical_klines, asset.code, start_date=start_date_fetch, end_date=end_date, ktype=KLType.K_60M)
+                _rate_limited_fetch(futu, asset.code, start_date_fetch, end_date, KLType.K_DAY),
+                _rate_limited_fetch(futu, asset.code, start_date_fetch, end_date, KLType.K_60M)
             )
-            # Sleep slightly to spread out requests over time
-            await asyncio.sleep(0.6) # throttle to avoid 60 requests / 30 seconds
         
         if df_day is not None:
             df_day = format_futu_df(df_day)
@@ -402,6 +453,11 @@ async def run_trading_bot(market_filter=None, force=False):
                 
                 # Initialize PortfolioManager with config directly
                 pm = await PortfolioManager.create(db_session, market_type.name, config)
+                
+                # Update total_assets in wallet after PortfolioManager loaded latest state
+                wallet.total_assets = pm.total_value
+                await db_session.commit()
+                
                 signals_context = []
                 asset_stats = {} 
                 
@@ -487,7 +543,9 @@ async def run_trading_bot(market_filter=None, force=False):
                         is_pre_close = True
                         
                     # 1. Detect Market Regime
-                    market_regime = RegimeDetector.get_market_regime(market_type.name)
+                    # Apply rate limiter explicitly before calling regime detector
+                    await futu_rate_limiter.wait()
+                    market_regime = RegimeDetector.get_market_regime(market_type.name, futu_client=futu)
                     
                     # 2. Get ML Prediction Probability
                     ml_prob = 0.5
@@ -526,6 +584,13 @@ async def run_trading_bot(market_filter=None, force=False):
                     elif action == TradeAction.SELL and market_regime == "STRONG_BULL":
                         # In a strong bull market, relax take-profit criteria slightly ( handled within strategies usually, but we log it here)
                         reason += " [强势牛市护航]"
+                    
+                    # Handle Trend Promotion (Signal returns HOLD but is_trend_entry is True)
+                    if action == TradeAction.HOLD and is_trend_entry and holding.quantity > 0 and holding.is_trend == 0:
+                        logger.info(f"[{code}] Promoting position to TREND mode: {reason}")
+                        holding.is_trend = 1
+                        await db_session.commit()
+                        continue # Already processed the promotion, no actual order needed
 
                     latest_close = float(klines_60m_with_ind['close'].iloc[-1])
                     current_asset_price = None
@@ -560,66 +625,80 @@ async def run_trading_bot(market_filter=None, force=False):
                 if not signals_context:
                     logger.info("本轮无交易信号触发。")
 
-                from engine.trade_lock import GlobalTradeLock
-                with GlobalTradeLock._lock: # Protect evaluation and execution together
-                    executable_orders = await pm.evaluate_signals(signals_context)
+                # Evaluate signals OUTSIDE the execution lock to minimize lock holding time
+                # Portfolio Manager load state needs its own brief protection if necessary,
+                # but evaluation itself is just math.
+                await pm._load_account_state()
+                for ctx in signals_context:
+                    h = await get_holding(db_session, user_id, ctx['code'], market_type)
+                    await db_session.refresh(h)
+                    ctx['sellable_qty'] = h.sellable_quantity
+                    ctx['tranches_count'] = h.tranches_count
+                    ctx['current_holding_val'] = h.quantity * ctx['price']
+                    asset_stats[ctx['code']]['holding'] = h
+
+                executable_orders = await pm.evaluate_signals(signals_context)
+                
+                # Execute evaluated orders
+                for order in executable_orders:
+                    code = order['code']
+                    action = order['action']
+                    qty = order['quantity']
+                    reason = order['reason']
+                    holding = asset_stats[code]['holding']
+                    is_t1 = (market_type == MarketType.A_SHARE)
                     
-                    # Execute evaluated orders
-                    for order in executable_orders:
-                        code = order['code']
-                        action = order['action']
-                        qty = order['quantity']
-                        reason = order['reason']
-                        holding = asset_stats[code]['holding']
-                        is_t1 = (market_type == MarketType.A_SHARE)
-                        
-                        if not is_market_open(market_type) and not force:
-                            logger.warning("[%s] Market is CLOSED. Skipping Execution.", code)
-                            continue
+                    if not is_market_open(market_type) and not force:
+                        logger.warning("[%s] Market is CLOSED. Skipping Execution.", code)
+                        continue
 
-                        # --- Dynamic Order Book Pricing ---
-                        # Fetch real-time Ask 1 / Bid 1 instead of relying on stale K-line close price
-                        quote = futu.get_realtime_quote(code)
-                        execution_price = order['price'] # Fallback to K-line price
-                        
-                        if quote:
-                            try:
-                                if action == TradeAction.BUY:
-                                    ask_price = float(quote.get('ask_price', 0))
-                                    if ask_price > 0:
-                                        # Use Ask 1 for buying, add slight slippage buffer
-                                        execution_price = ask_price * 1.001
-                                        logger.info(f"[{code}] OrderBook Pricing: Using Ask 1 ({ask_price}) for BUY")
-                                    else:
-                                        execution_price = order['price'] * 1.002
-                                        
-                                elif action == TradeAction.SELL:
-                                    bid_price = float(quote.get('bid_price', 0))
-                                    if bid_price > 0:
-                                        # Use Bid 1 for selling, subtract slight slippage buffer
-                                        execution_price = bid_price * 0.999
-                                        logger.info(f"[{code}] OrderBook Pricing: Using Bid 1 ({bid_price}) for SELL")
-                                    else:
-                                        execution_price = order['price'] * 0.998
-                            except Exception as e:
-                                logger.error(f"[{code}] Failed to parse realtime quote for pricing: {e}")
-                                execution_price = order['price'] * (1.002 if action == TradeAction.BUY else 0.998)
-                        else:
-                            # Fallback if snapshot fails
+                    # --- Dynamic Order Book Pricing ---
+                    # Fetch real-time Ask 1 / Bid 1 instead of relying on stale K-line close price
+                    quote = futu.get_realtime_quote(code)
+                    execution_price = order['price'] # Fallback to K-line price
+                    
+                    if quote:
+                        try:
+                            if action == TradeAction.BUY:
+                                ask_price = float(quote.get('ask_price', 0))
+                                if ask_price > 0:
+                                    # Use Ask 1 for buying, add slight slippage buffer
+                                    execution_price = ask_price * 1.001
+                                    logger.info(f"[{code}] OrderBook Pricing: Using Ask 1 ({ask_price}) for BUY")
+                                else:
+                                    execution_price = order['price'] * 1.002
+                                    
+                            elif action == TradeAction.SELL:
+                                bid_price = float(quote.get('bid_price', 0))
+                                if bid_price > 0:
+                                    # Use Bid 1 for selling, subtract slight slippage buffer
+                                    execution_price = bid_price * 0.999
+                                    logger.info(f"[{code}] OrderBook Pricing: Using Bid 1 ({bid_price}) for SELL")
+                                else:
+                                    execution_price = order['price'] * 0.998
+                        except Exception as e:
+                            logger.error(f"[{code}] Failed to parse realtime quote for pricing: {e}")
                             execution_price = order['price'] * (1.002 if action == TradeAction.BUY else 0.998)
+                    else:
+                        # Fallback if snapshot fails
+                        execution_price = order['price'] * (1.002 if action == TradeAction.BUY else 0.998)
 
+                    from engine.trade_lock import GlobalTradeLock
+                    with GlobalTradeLock._lock: # Protect ONLY the actual DB/Execution part
                         if action == TradeAction.SELL:
-                            trade_record = await executor.execute_trade(user_id, code, action, price=execution_price, quantity=qty, reason=reason)
+                            trade_record = await executor.execute_trade(user_id, code, action, price=execution_price, quantity=qty, reason=reason, avg_cost=holding.avg_cost)
                             if trade_record:
-                                await update_wallet(db_session, user_id, market_type, qty * execution_price)
+                                await update_wallet(db_session, user_id, market_type, qty * execution_price, realized_pnl=trade_record.realized_pnl)
                                 await update_holding_sell(db_session, holding, qty)
-                                logger.info(f"已卖出 {qty} 股 {code} @ {execution_price:.3f}")
+                                await db_session.commit()
+                                logger.info(f"已卖出 {qty} 股 {code} @ {execution_price:.3f}, 实现盈亏: {trade_record.realized_pnl:.2f}")
                                 
                         elif action == TradeAction.BUY:
                             trade_record = await executor.execute_trade(user_id, code, action, price=execution_price, quantity=qty, reason=reason)
                             if trade_record:
                                 await update_wallet(db_session, user_id, market_type, -(qty * execution_price))
                                 await update_holding_buy(db_session, holding, qty, execution_price, is_t1=is_t1, is_trend=order.get('is_trend_entry', False))
+                                await db_session.commit()
                                 logger.info(f"已买入 {qty} 股 {code} @ {execution_price:.3f}")
 
         except Exception as e:

@@ -1,20 +1,21 @@
-import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
 import logging
 from datetime import datetime, timedelta
+from data.futu_client import FutuClient
+from futu import KLType
 
 logger = logging.getLogger(__name__)
 
 class RegimeDetector:
     """
-    Detects the current market regime based on benchmark indices (e.g., CSI 300 for A-Shares, HSI for HK-Shares).
+    Detects the current market regime based on benchmark indices (e.g., SH.000300 for A-Shares, HK.800000 for HK-Shares).
     Uses 200-day SMA and ADX to classify the market into STRONG_BULL, STRONG_BEAR, or CHOPPY.
     """
     _cache = {}
     
     @classmethod
-    def get_market_regime(cls, market_type: str) -> str:
+    def get_market_regime(cls, market_type: str, futu_client: FutuClient = None) -> str:
         """
         market_type: 'A_SHARE' or 'HK_SHARE'
         Returns: 'STRONG_BULL', 'STRONG_BEAR', 'CHOPPY', or 'UNKNOWN'
@@ -26,24 +27,53 @@ class RegimeDetector:
             if cached_date == today:
                 return cached_regime
                 
-        ticker = "000300.SS" if market_type == "A_SHARE" else "^HSI"
+        ticker = "SH.000300" if market_type == "A_SHARE" else "HK.800000"
+        
+        own_client = False
+        if futu_client is None:
+            futu_client = FutuClient()
+            if not futu_client.connect():
+                logger.warning(f"Failed to connect to FutuOpenD for regime detection ({ticker})")
+                return "UNKNOWN"
+            own_client = True
         
         try:
-            # Fetch ~300 trading days of data to compute 200-SMA
-            df = yf.download(ticker, period="400d", progress=False)
-            if df.empty:
+            # Check if futu_client is passed and apply rate limiting if necessary
+            # We don't have direct access to the rate limiter here, so we do a simple sleep
+            # to avoid bursting immediately after the main fetch loop
+            import time
+            time.sleep(2.0)
+            
+            # Fetch ~400 calendar days of data to compute 200-SMA
+            start_date = (datetime.now() - timedelta(days=400)).strftime("%Y-%m-%d")
+            
+            # Add simple retry for the regime fetch as well
+            max_retries = 3
+            df = None
+            for attempt in range(max_retries):
+                try:
+                    df = futu_client.get_historical_klines(ticker, start_date=start_date, end_date=today, ktype=KLType.K_DAY)
+                    break
+                except Exception as e:
+                    if "频率太高" in str(e) or "30秒最多" in str(e):
+                        if attempt < max_retries - 1:
+                            logger.warning(f"Rate limit hit in regime detector for {ticker}, sleeping 10s...")
+                            time.sleep(10)
+                            continue
+                    raise e
+                    
+            if df is None or df.empty:
                 logger.warning(f"Failed to download benchmark data for {ticker}")
                 return "UNKNOWN"
                 
-            # Handle yfinance MultiIndex output for single tickers
-            if isinstance(df.columns, pd.MultiIndex):
-                close_col = ('Close', ticker)
-                high_col = ('High', ticker)
-                low_col = ('Low', ticker)
-            else:
-                close_col = 'Close'
-                high_col = 'High'
-                low_col = 'Low'
+            close_col = 'close'
+            high_col = 'high'
+            low_col = 'low'
+            
+            # Ensure float types
+            df[close_col] = df[close_col].astype(float)
+            df[high_col] = df[high_col].astype(float)
+            df[low_col] = df[low_col].astype(float)
 
             df['SMA_200'] = ta.sma(df[close_col], length=200)
             adx_res = ta.adx(df[high_col], df[low_col], df[close_col], length=14)
@@ -83,3 +113,6 @@ class RegimeDetector:
         except Exception as e:
             logger.error(f"Error detecting market regime for {market_type}: {e}")
             return "UNKNOWN"
+        finally:
+            if own_client:
+                futu_client.close()

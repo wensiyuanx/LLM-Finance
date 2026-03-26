@@ -56,6 +56,7 @@ class StandardStockMTFStrategy(bt.Strategy):
         self.sell_markers = []
         self.trade_log = []
         self.trade_count = 0
+        self._highest_price = 0.0
 
     def notify_order(self, order):
         if order.status in [order.Submitted, order.Accepted]:
@@ -67,11 +68,13 @@ class StandardStockMTFStrategy(bt.Strategy):
 
             if order.isbuy():
                 self.buyprice = order.executed.price
+                self._highest_price = self.buyprice
                 self.buy_markers.append((dt, order.executed.price))
                 self.trade_count += 1
                 self.last_buy_date = dt.date()
             elif order.issell():
                 self.buyprice = None
+                self._highest_price = 0.0
                 self.sell_markers.append((dt, order.executed.price))
                 if self.position.size == 0:
                     self._trend_breakout_used = False
@@ -98,6 +101,9 @@ class StandardStockMTFStrategy(bt.Strategy):
             return
 
         current_price = self.dataclose[0]
+        
+        if self.position:
+            self._highest_price = max(self._highest_price, current_price)
 
         if self.position:
             profit_pct = (current_price - self.buyprice) / self.buyprice if self.buyprice else 0
@@ -112,6 +118,18 @@ class StandardStockMTFStrategy(bt.Strategy):
                 self.order = self.sell(size=self.position.size)
                 self.order.reason = f"极度风控止盈 (盈利 {profit_pct*100:.2f}%)"
                 return
+
+            # Breakeven / Profit Protection Logic (Same as live trading)
+            if self._highest_price > 0 and self.buyprice > 0:
+                max_profit_pct = (self._highest_price - self.buyprice) / self.buyprice
+                # If profit once reached > 2.5%, raise stop loss to entry price + 0.5%
+                if max_profit_pct >= 0.025:
+                    breakeven_price = self.buyprice * 1.005
+                    if current_price < breakeven_price:
+                        print(f"{self.datas[0].datetime.datetime(0)} - 触发保本护城河 at {current_price:.2f}")
+                        self.order = self.sell(size=self.position.size)
+                        self.order.reason = f"触发保本护城河 (利润曾达 {max_profit_pct*100:.1f}%), 保本微利离场"
+                        return
 
             if 'ATR_14' in self.datas[0].__dict__:
                 atr = self.atr[0]

@@ -58,6 +58,7 @@ class BacktestRequest(BaseModel):
     strategy: str = "etf"  # "etf" or "standard" or "leveraged"
     user_id: int = 1
     start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 def upload_to_tos(local_file_path: str, object_key: str) -> str:
@@ -77,22 +78,22 @@ def run_backtest_job(job_id: str, req: BacktestRequest):
         strategy = req.strategy.lower()
 
         if strategy == "etf":
-            success = etf_fetch(code, req.days)
+            success = etf_fetch(code, req.days + 60) # Fetch extra days for indicators
             if not success:
                 raise RuntimeError("Failed to fetch data for ETF backtest. Check that FutuOpenD is running.")
-            etf_backtest(code, req.cash, start_date=req.start_date)
+            etf_backtest(code, req.cash, start_date=req.start_date, end_date=req.end_date)
             local_plot_file = f"etf_backtest_result_{code}.png"
         elif strategy == "leveraged":
-            success = lev_fetch(code, req.days)
+            success = lev_fetch(code, req.days + 60) # Fetch extra days for indicators
             if not success:
                 raise RuntimeError("Failed to fetch data for Leveraged ETF backtest. Check that FutuOpenD is running.")
-            lev_backtest(code, req.cash, start_date=req.start_date)
+            lev_backtest(code, req.cash, start_date=req.start_date, end_date=req.end_date)
             local_plot_file = f"lev_etf_backtest_result_{code}.png"
         else:
-            success = std_fetch(code, req.days)
+            success = std_fetch(code, req.days + 60) # Fetch extra days for indicators
             if not success:
                 raise RuntimeError("Failed to fetch data for standard backtest. Check that FutuOpenD is running.")
-            std_backtest(code, req.cash, start_date=req.start_date)
+            std_backtest(code, req.cash, start_date=req.start_date, end_date=req.end_date)
             local_plot_file = f"backtest_result_{code}.png"
 
         # Note: The underlying backtest functions still hardcode the output filename.

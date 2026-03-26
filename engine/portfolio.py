@@ -44,7 +44,7 @@ class PortfolioManager:
         from database.models import UserWallet, Holding
         
         # Load wallet balance
-        stmt = select(UserWallet).filter(UserWallet.market_type == self.market_type)
+        stmt = select(UserWallet).filter(UserWallet.market_type == self.market_type).execution_options(populate_existing=True)
         result = await self.db.execute(stmt)
         wallet = result.scalar_one_or_none()
         
@@ -57,7 +57,7 @@ class PortfolioManager:
         stmt = select(Holding).filter(
             Holding.market_type == self.market_type,
             Holding.quantity > 0
-        )
+        ).execution_options(populate_existing=True)
         result = await self.db.execute(stmt)
         holdings = result.scalars().all()
         
@@ -156,9 +156,10 @@ class PortfolioManager:
                     "price": ctx['price'],
                     "reason": ctx['reason']
                 })
-                # Pseudo cash increment (ignoring commissions for now)
+                # We DO NOT increment self.current_cash here.
+                # In live trading, sell proceeds are not instantly available for the very next buy order
+                # in the same evaluation loop. We only deduct current_held_val for exposure tracking.
                 proceeds = sellable_qty * ctx['price']
-                self.current_cash += proceeds
                 current_held_val -= proceeds
                 
         # Calculate slot limits (Ensuring 10% cash reserve is respected globally)

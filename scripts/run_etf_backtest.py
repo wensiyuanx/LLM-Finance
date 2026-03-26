@@ -88,7 +88,7 @@ def fetch_and_save_data(code, days=550):
     finally:
         session.close()
 
-def run_backtest(code, cash=100000.0, start_date=None):
+def run_backtest(code, cash=100000.0, start_date=None, end_date=None):
     """
     Invokes the Backtrader ETF Grid strategy with the specified code.
     """
@@ -105,7 +105,12 @@ def run_backtest(code, cash=100000.0, start_date=None):
     
     logger.info(f"Loading data for {code} from database...")
     
-    query_60m = f"SELECT time_key, open_price as open, high_price as high, low_price as low, close_price as close, volume FROM kline_data WHERE code='{code}' AND timeframe='60m' ORDER BY time_key ASC"
+    query_60m = f"SELECT time_key, open_price as open, high_price as high, low_price as low, close_price as close, volume FROM kline_data WHERE code='{code}' AND timeframe='60m'"
+    if start_date:
+        query_60m += f" AND time_key >= '{start_date} 00:00:00'"
+    if end_date:
+        query_60m += f" AND time_key <= '{end_date} 23:59:59'"
+    query_60m += " ORDER BY time_key ASC"
     raw_conn = engine.raw_connection()
     try:
         df_60m = pd.read_sql_query(query_60m, raw_conn)
@@ -129,6 +134,7 @@ def run_backtest(code, cash=100000.0, start_date=None):
     cerebro.adddata(data0)
     
     # Remove Data1 as the ETF grid strategy only uses data0
+    # Daily data query (1d) is not needed
     
     cerebro.broker.setcash(cash)
     cerebro.broker.setcommission(commission=0.001)
@@ -254,13 +260,15 @@ if __name__ == "__main__":
     parser.add_argument("code", type=str, help="Stock code (e.g., HK.00700, SZ.159915)")
     parser.add_argument("--days", type=int, default=550, help="Days of history to fetch (default: 550)")
     parser.add_argument("--start_date", type=str, default=None, help="Backtest start date (YYYY-MM-DD)")
+    parser.add_argument("--end_date", type=str, default=None, help="Backtest end date (YYYY-MM-DD)")
     parser.add_argument("--cash", type=float, default=100000.0, help="Initial cash (default: 100000)")
     
     args = parser.parse_args()
     
     # 1. Fetch Data
-    success = fetch_and_save_data(args.code, args.days)
+    # We fetch a bit more data than requested to ensure indicators have enough history
+    success = fetch_and_save_data(args.code, args.days + 60)
     
     # 2. Run Backtest
     if success:
-        run_backtest(args.code, args.cash, start_date=args.start_date)
+        run_backtest(args.code, args.cash, start_date=args.start_date, end_date=args.end_date)

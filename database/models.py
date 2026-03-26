@@ -64,6 +64,11 @@ class TradeRecord(Base):
     order_id = Column(String(100), nullable=True) # Futu Order ID
     status = Column(String(50), default="SUBMITTED") # SUBMITTED, FILLED, FAILED
     reason = Column(String(500), nullable=True) # Strategy reason
+    
+    # New fields for PnL tracking
+    realized_pnl = Column(Float, nullable=True, default=0.0) # Only populated for SELL orders
+    pnl_pct = Column(Float, nullable=True, default=0.0) # Percentage return for SELL orders
+    
     created_at = Column(DateTime, default=get_beijing_time)
 
 class SignalRecord(Base):
@@ -86,6 +91,11 @@ class UserWallet(Base):
     market_type = Column(Enum(MarketType), nullable=False) # Which market this wallet covers
     balance = Column(Float, nullable=False, default=0.0)   # Available cash
     currency = Column(String(10), nullable=False)          # e.g. CNY, HKD, USD
+    
+    # Track overall performance
+    total_assets = Column(Float, nullable=False, default=0.0) # Cash + Holdings Value
+    total_pnl = Column(Float, nullable=False, default=0.0)    # Total realized + unrealized PnL
+    
     updated_at = Column(DateTime, default=get_beijing_time, onupdate=get_beijing_time)
 
 

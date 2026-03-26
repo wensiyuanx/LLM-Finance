@@ -31,5 +31,7 @@ strategies:
   standard_stock:
     atr_stop_loss_mult: 2.5
     atr_take_profit_mult: 3.0
-    fixed_stop_loss: -0.08      # 盘中硬止损底线
-    fixed_take_profit: 0.15     # 盘中硬止盈上限
+    fixed_stop_loss: -0.05       # 绝对硬止损 -5%
+    fixed_take_profit: 0.15      # 绝对硬止盈 15%
+    trailing_activation_pct: 0.02 # 当利润达到 2% 时激活追踪止盈 (原 4%)
+    trailing_stop_pct: 0.03      # 从最高点回落 3% 即卖出 (原 5%)
