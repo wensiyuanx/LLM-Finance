@@ -244,6 +244,66 @@ async def update_holding_sell(db, holding: Holding, qty: float):
     # commit is handled by the caller to ensure atomicity
 
 
+async def sync_broker_holdings(db_session, futu_client, user_id=1):
+    """
+    Synchronize the database holdings with the actual broker holdings.
+    This resolves the T+1 rollover single-point-of-failure risk.
+    """
+    from futu import RET_OK, TrdEnv
+    import pandas as pd
+    
+    logger.info("Starting mandatory T+1 state reconciliation with broker...")
+    
+    # Check HK and CN contexts
+    contexts = []
+    if getattr(futu_client, 'trade_hk_ctx', None):
+        contexts.append(futu_client.trade_hk_ctx)
+    if getattr(futu_client, 'trade_cn_ctx', None):
+        contexts.append(futu_client.trade_cn_ctx)
+        
+    if not contexts:
+        logger.warning("No trade contexts available for reconciliation. Falling back to DB-only T+1 rollover.")
+        await rollover_t1_holdings(db_session, user_id)
+        return
+
+    broker_holdings = {} # code: (qty, can_sell_qty)
+    
+    for ctx in contexts:
+        try:
+            ret, data = ctx.position_list_query(trd_env=TrdEnv.REAL)
+            if ret == RET_OK and not data.empty:
+                for _, row in data.iterrows():
+                    code = row['code']
+                    qty = float(row['qty'])
+                    can_sell_qty = float(row['can_sell_qty'])
+                    broker_holdings[code] = (qty, can_sell_qty)
+        except Exception as e:
+            logger.error(f"Failed to query position list from {ctx}: {e}")
+
+    # Now update DB based on broker truth
+    stmt = select(Holding).filter(Holding.user_id == user_id)
+    result = await db_session.execute(stmt)
+    db_holdings = result.scalars().all()
+    
+    for h in db_holdings:
+        if h.code in broker_holdings:
+            actual_qty, actual_can_sell = broker_holdings[h.code]
+            if h.quantity != actual_qty or h.sellable_quantity != actual_can_sell:
+                logger.info(f"Reconciling {h.code}: DB(qty={h.quantity}, sellable={h.sellable_quantity}) -> Broker(qty={actual_qty}, sellable={actual_can_sell})")
+                h.quantity = actual_qty
+                h.sellable_quantity = actual_can_sell
+        else:
+            # Not in broker but in DB? If DB says we have > 0, we might need to sync to 0, but let's be careful.
+            # Only sync if quantity > 0
+            if h.quantity > 0:
+                logger.warning(f"Reconciling {h.code}: Not found in broker, setting DB qty to 0.")
+                h.quantity = 0
+                h.sellable_quantity = 0
+                
+    await db_session.commit()
+    logger.info("T+1 state reconciliation completed.")
+
+
 async def rollover_t1_holdings(db_session, user_id=None):
     """Called at start of day: all quantity becomes sellable_quantity."""
     stmt = select(Holding)
@@ -520,6 +580,31 @@ async def run_trading_bot(market_filter=None, force=False):
                     if full_klines_day.empty or full_klines_60m.empty:
                         logger.warning(f"No sufficient historical data in DB for {code}.")
                         continue
+                        
+                    # --- Shadow Market Data (影子行情) Update ---
+                    # To prevent indicator lag, append/update the latest real-time price
+                    try:
+                        await futu_rate_limiter.wait()
+                        rt_quote = await asyncio.to_thread(futu.get_realtime_quote, code)
+                        if rt_quote and 'last_price' in rt_quote:
+                            rt_price = float(rt_quote['last_price'])
+                            # Update last close price of 60m and day
+                            full_klines_60m.iloc[-1, full_klines_60m.columns.get_loc('close')] = rt_price
+                            full_klines_day.iloc[-1, full_klines_day.columns.get_loc('close')] = rt_price
+                            
+                            # Also update high/low if necessary
+                            if rt_price > full_klines_60m.iloc[-1]['high']:
+                                full_klines_60m.iloc[-1, full_klines_60m.columns.get_loc('high')] = rt_price
+                            if rt_price < full_klines_60m.iloc[-1]['low']:
+                                full_klines_60m.iloc[-1, full_klines_60m.columns.get_loc('low')] = rt_price
+                            
+                            if rt_price > full_klines_day.iloc[-1]['high']:
+                                full_klines_day.iloc[-1, full_klines_day.columns.get_loc('high')] = rt_price
+                            if rt_price < full_klines_day.iloc[-1]['low']:
+                                full_klines_day.iloc[-1, full_klines_day.columns.get_loc('low')] = rt_price
+                    except Exception as e:
+                        logger.warning(f"Failed to fetch realtime quote for shadow market data update for {code}: {e}")
+                    # --------------------------------------------
                         
                     # Calculate indicators
                     klines_60m_with_ind = calculate_indicators(full_klines_60m)

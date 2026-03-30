@@ -34,4 +34,4 @@ strategies:
     fixed_stop_loss: -0.05       # 绝对硬止损 -5%
     fixed_take_profit: 0.15      # 绝对硬止盈 15%
     trailing_activation_pct: 0.02 # 当利润达到 2% 时激活追踪止盈 (原 4%)
-    trailing_stop_pct: 0.03      # 从最高点回落 3% 即卖出 (原 5%)
+    trailing_stop_pct: 0.015     # 收紧：从最高点回落 1.5% 即卖出，保护微利不被完全吞噬 (原 3%)

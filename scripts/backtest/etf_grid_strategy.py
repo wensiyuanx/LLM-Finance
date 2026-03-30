@@ -159,27 +159,29 @@ class ETFGridMeanReversionStrategy(bt.Strategy):
                 if not hasattr(self, '_dynamic_exit_price') or self._dynamic_exit_price is None:
                     self._dynamic_exit_price = avg_cost * 0.94 # 初始硬止损 6%
                 
-                # 1. 保本策略 (Breakeven): 利润 > 2% 时，止损上移至成本+0.5%
-                if profit_pct >= 0.02:
+                # 1. 保本策略 (Breakeven): 历史最大利润 > 2% 时，止损上移至成本+0.5%
+                max_profit_pct = (self._trend_highest - avg_cost) / avg_cost
+                if max_profit_pct >= 0.02:
                     self._dynamic_exit_price = max(self._dynamic_exit_price, avg_cost * 1.005)
                 
                 # 2. 阶梯与自适应跟踪 (Adaptive Trailing):
                 is_strong_trend = self.adx[0] > 25 # ADX > 25 认为趋势强
                 
-                if 0.015 <= profit_pct < 0.04:
+                # 注意：阶梯判定应基于历史最大利润 max_profit_pct
+                if 0.015 <= max_profit_pct < 0.04:
                     if not is_strong_trend:
-                        # 震荡市或趋势弱：止损紧跟最高价下 2%
-                        tight_stop = self._trend_highest * 0.98
+                        # 震荡市或趋势弱：止损紧跟最高价下 1.5% (保护微利)
+                        tight_stop = self._trend_highest * 0.985
                         self._dynamic_exit_price = max(self._dynamic_exit_price, tight_stop)
                     else:
-                        # 趋势强：稍微放宽，防止洗盘，下移至 4% (博大利)
-                        trend_stop = self._trend_highest * 0.96
+                        # 趋势强：稍微放宽，防止洗盘，下移至 2.5%
+                        trend_stop = self._trend_highest * 0.975
                         self._dynamic_exit_price = max(self._dynamic_exit_price, trend_stop)
                         
-                elif profit_pct >= 0.04:
+                elif max_profit_pct >= 0.04:
                     if is_strong_trend:
-                        # 大趋势确认：止损留出 6% 宽广波动空间，捕捉主升浪
-                        wide_stop = self._trend_highest * 0.94
+                        # 大趋势确认：止损留出 5% 宽广波动空间，捕捉主升浪
+                        wide_stop = self._trend_highest * 0.95
                         self._dynamic_exit_price = max(self._dynamic_exit_price, wide_stop)
                     else:
                         # 利润虽大但趋势转弱：收紧至 3% 锁定收益

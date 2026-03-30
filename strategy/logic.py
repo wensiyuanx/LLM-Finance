@@ -81,7 +81,12 @@ def generate_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = None, current_
             if max_profit_pct >= 0.025:
                 breakeven_price = avg_cost * 1.005
                 if current_price < breakeven_price:
-                    return TradeAction.SELL, f"触发保本护城河 (利润曾达 {max_profit_pct*100:.1f}%), 保本微利离场", 0.0, False
+                    if current_price >= avg_cost:
+                        msg = f"触发保本护城河 (利润曾达 {max_profit_pct*100:.1f}%), 保本微利离场"
+                    else:
+                        actual_loss_pct = (avg_cost - current_price) / avg_cost * 100
+                        msg = f"触发保本护城河 (利润曾达 {max_profit_pct*100:.1f}%), 但因滑点/跳空导致实际亏损离场 ({actual_loss_pct:.2f}%)"
+                    return TradeAction.SELL, msg, 0.0, False
 
     # Trend Regime Filter (Hourly)
     in_downtrend = False
@@ -274,27 +279,34 @@ def generate_grid_trend_signals(df_60m: pd.DataFrame, df_day: pd.DataFrame = Non
                 adx = latest.get('ADX', 20) # 默认为弱
                 is_strong_trend = adx > 25
 
-                # 1. 保本策略 (Breakeven): 利润 > 2% 时，止损上移至成本+0.5%
-                if profit_pct >= 0.02:
+                # 1. 保本策略 (Breakeven): 历史最大利润 > 2% 时，止损上移至成本+0.5%
+                max_profit_pct = (highest_price - avg_cost) / avg_cost
+                if max_profit_pct >= 0.02:
                     breakeven_line = avg_cost * 1.005
                     if current_price < breakeven_line:
-                        return TradeAction.SELL, f"趋势单触发保本止损 (利润曾达2%), 收益: {profit_pct*100:.1f}%", 0.0, False
+                        if current_price >= avg_cost:
+                            msg = f"趋势单触发保本止损 (利润曾达 {max_profit_pct*100:.1f}%), 收益: {profit_pct*100:.1f}%"
+                        else:
+                            actual_loss_pct = (avg_cost - current_price) / avg_cost * 100
+                            msg = f"趋势单触发保本止损 (利润曾达 {max_profit_pct*100:.1f}%), 但因滑点导致实际亏损离场 ({actual_loss_pct:.2f}%)"
+                        return TradeAction.SELL, msg, 0.0, False
 
                 # 2. 阶梯与自适应跟踪 (Adaptive Trailing):
-                if 0.015 <= profit_pct < 0.04:
+                # 注意：阶梯的判定应该基于曾达到的最大利润 max_profit_pct，而不是当前回落后的 profit_pct
+                if 0.015 <= max_profit_pct < 0.04:
                     if not is_strong_trend:
-                        # 震荡市：紧凑离场 (2%)
-                        if current_price < highest_price * 0.98:
-                            return TradeAction.SELL, f"趋势弱势回调 (最高价 {highest_price:.3f} 回撤2%), 收益: {profit_pct*100:.1f}%", 0.0, False
+                        # 震荡市：紧凑离场 (最大利润 < 4% 时，最高价回撤 1.5% 就跑，保护微利)
+                        if current_price < highest_price * 0.985:
+                            return TradeAction.SELL, f"趋势弱势回调 (最高价 {highest_price:.3f} 回撤1.5%), 收益: {profit_pct*100:.1f}%", 0.0, False
                     else:
-                        # 强势趋势：放宽至 4%
-                        if current_price < highest_price * 0.96:
-                            return TradeAction.SELL, f"趋势强势回调 (最高价 {highest_price:.3f} 回撤4%), 收益: {profit_pct*100:.1f}%", 0.0, False
-                elif profit_pct >= 0.04:
+                        # 强势趋势：稍微放宽至 2.5% (之前4%太大，容易跌破成本)
+                        if current_price < highest_price * 0.975:
+                            return TradeAction.SELL, f"趋势强势回调 (最高价 {highest_price:.3f} 回撤2.5%), 收益: {profit_pct*100:.1f}%", 0.0, False
+                elif max_profit_pct >= 0.04:
                     if is_strong_trend:
-                        # 极强持股：留出 6% 波动空间
-                        if current_price < highest_price * 0.94:
-                            return TradeAction.SELL, f"趋势主升浪回撤 (最高价 {highest_price:.3f} 6%), 收益: {profit_pct*100:.1f}%", 0.0, False
+                        # 极强持股：留出 5% 波动空间 (原6%略大)
+                        if current_price < highest_price * 0.95:
+                            return TradeAction.SELL, f"趋势主升浪回撤 (最高价 {highest_price:.3f} 5%), 收益: {profit_pct*100:.1f}%", 0.0, False
                     else:
                         # 趋势弱化：收紧至 3%
                         if current_price < highest_price * 0.97:

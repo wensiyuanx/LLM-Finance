@@ -31,8 +31,20 @@ class FutuClient:
         try:
             print(f"Connecting to FutuOpenD {FUTU_HOST}:{FUTU_PORT}")
             self.quote_ctx = OpenQuoteContext(host=FUTU_HOST, port=FUTU_PORT)
-            # You can initialize trade ctx as well, e.g., OpenHKTradeContext
-            # self.trade_ctx = OpenHKTradeContext(host=FUTU_HOST, port=FUTU_PORT, trd_env=TrdEnv.SIMULATE)
+            
+            # 尝试初始化交易上下文，为了查询真实持仓
+            try:
+                # 默认尝试连接 A 股通 (如果需要港股可使用 OpenHKTradeContext)
+                # 这里为了兼容，可能需要根据具体需求调整
+                from futu import OpenHKTradeContext, OpenCNTradeContext, TrdEnv
+                self.trade_hk_ctx = OpenHKTradeContext(host=FUTU_HOST, port=FUTU_PORT, trd_env=TrdEnv.REAL)
+                self.trade_cn_ctx = OpenCNTradeContext(host=FUTU_HOST, port=FUTU_PORT, trd_env=TrdEnv.REAL)
+                print("Connected to FutuOpenD Trade Contexts (HK/CN).")
+            except Exception as e:
+                print(f"Trade context connection skipped or failed: {e}")
+                self.trade_hk_ctx = None
+                self.trade_cn_ctx = None
+
             print("Connected to FutuOpenD Quote Context.")
             return True
         except Exception as e:
@@ -48,8 +60,10 @@ class FutuClient:
         if self.quote_ctx:
             self.quote_ctx.close()
             print("Quote context closed.")
-        if self.trade_ctx:
-            self.trade_ctx.close()
+        if getattr(self, 'trade_hk_ctx', None):
+            self.trade_hk_ctx.close()
+        if getattr(self, 'trade_cn_ctx', None):
+            self.trade_cn_ctx.close()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=False)
     def get_historical_klines(self, code, start_date, end_date, ktype=KLType.K_60M, autype=AuType.QFQ):

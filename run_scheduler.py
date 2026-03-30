@@ -462,14 +462,13 @@ def start_realtime_monitor_thread(batch_interval=5.0):
                            f"Pending: {stats['pending_updates']}, "
                            f"Cache: {stats['cache_size']}")
 
-                # Update subscription if new assets appear
-                new_codes = handler.active_assets
-                if set(new_codes) != set(codes):
-                    codes = new_codes
-                    if codes:
-                        quote_ctx.subscribe(codes, [SubType.QUOTE], subscribe_push=True)
-                        logger.info(f"[RealTime] Updated real-time subscription list: {codes}")
-
+                # Resubscribe to ensure connection isn't lost after OpenD reconnects
+                codes = handler.active_assets
+                if codes:
+                    ret, data = quote_ctx.subscribe(codes, [SubType.QUOTE], subscribe_push=True)
+                    if ret != RET_OK:
+                        logger.warning(f"[RealTime] Periodic resubscription failed (might be disconnected): {data}")
+                        
         except Exception as e:
             logger.error(f"[RealTime] Monitor thread error: {e}")
         finally:
@@ -517,6 +516,22 @@ def start_api_server_thread():
     thread.start()
     return thread
 
+def job_train_ml():
+    """Weekly AI Retraining Job."""
+    start_time = time.time()
+    logger.info("=== Weekly ML Retraining Job Started ===")
+    try:
+        import subprocess
+        # Run the training script in a separate process to avoid blocking the scheduler
+        subprocess.run(["python", "scripts/train_ml_models.py"], check=True)
+        logger.info("Successfully completed ML retraining.")
+    except Exception as e:
+        logger.error("ML retraining failed: %s", e, exc_info=True)
+    finally:
+        elapsed = time.time() - start_time
+        logger.info("=== Weekly ML Retraining Job Finished (Elapsed: %.1fs) ===", elapsed)
+
+
 # ---------------------------------------------------------------------------
 # Scheduler entry point
 # ---------------------------------------------------------------------------
@@ -530,6 +545,22 @@ def start_scheduler(batch_interval=5.0):
                       Higher values = better performance but slight delay
     """
     init_db()   # create any missing tables once at startup
+    
+    # Run mandatory T+1 reconciliation at startup
+    logger.info("Performing startup T+1 state reconciliation...")
+    from main import sync_broker_holdings
+    from data.futu_client import FutuClient
+    futu_client = FutuClient()
+    if futu_client.connect():
+        import asyncio
+        from database.db import AsyncSessionLocal
+        async def do_sync():
+            async with AsyncSessionLocal() as db_session:
+                await sync_broker_holdings(db_session, futu_client)
+        asyncio.run(do_sync())
+        futu_client.close()
+    else:
+        logger.warning("Failed to connect to Futu for initial T+1 reconciliation.")
 
     # Start real-time monitoring thread with batch writing
     logger.info("=" * 60)
@@ -566,6 +597,9 @@ def start_scheduler(batch_interval=5.0):
     schedule.every().day.at("14:30").do(job_hk_share)
     schedule.every().day.at("15:30").do(job_hk_share)
 
+    # Weekly AI Retraining session: Every Saturday at 12:00
+    schedule.every().saturday.at("12:00").do(job_train_ml)
+
     logger.info("=" * 60)
     logger.info("Scheduler configured:")
     logger.info("  - Real-time monitoring: ACTIVE (background thread)")
@@ -573,6 +607,7 @@ def start_scheduler(batch_interval=5.0):
     logger.info("  - A-Share analysis: 10:00, 11:20, 14:00, 14:40")
     logger.info("  - HK-Share analysis: 10:30, 11:30, 14:30, 15:30")
     logger.info("  - T+1 rollover: 08:55")
+    logger.info("  - Weekly ML Retraining: Saturday 12:00")
     logger.info("  - Holiday checking: ENABLED (skips trading on holidays)")
     logger.info("  - Execution time monitoring: ENABLED")
     logger.info("=" * 60)

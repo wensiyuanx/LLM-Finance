@@ -128,7 +128,11 @@ class StandardStockMTFStrategy(bt.Strategy):
                     if current_price < breakeven_price:
                         print(f"{self.datas[0].datetime.datetime(0)} - 触发保本护城河 at {current_price:.2f}")
                         self.order = self.sell(size=self.position.size)
-                        self.order.reason = f"触发保本护城河 (利润曾达 {max_profit_pct*100:.1f}%), 保本微利离场"
+                        if current_price >= self.buyprice:
+                            self.order.reason = f"触发保本护城河 (利润曾达 {max_profit_pct*100:.1f}%), 保本微利离场"
+                        else:
+                            actual_loss_pct = (self.buyprice - current_price) / self.buyprice * 100
+                            self.order.reason = f"触发保本护城河 (利润曾达 {max_profit_pct*100:.1f}%), 但因滑点/跳空导致实际亏损离场 ({actual_loss_pct:.2f}%)"
                         return
 
             if 'ATR_14' in self.datas[0].__dict__:

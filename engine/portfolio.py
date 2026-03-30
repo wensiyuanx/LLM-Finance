@@ -171,20 +171,41 @@ class PortfolioManager:
         slot_value = max_allowed_held_val / max(1, num_slots)
         current_active_holdings = self.active_holdings_count
 
+        # 行业集中度控制：统计当前持仓的行业/类型暴露度
+        # 这里用 is_etf 和代码前缀做简单的相关度/行业代理。实盘中可扩展为真实的申万一级行业映射
+        sector_exposure = {}
+        for code, h in self.holdings.items():
+            sector = "ETF" if "ETF" in h.get('name', '') or code.startswith(('SH.5', 'SZ.1')) else "STOCK"
+            sector_exposure[sector] = sector_exposure.get(sector, 0) + 1
+
+        # 限制同一板块最多占用 60% 的总并发槽位
+        max_assets_per_sector = max(2, int(self.max_concurrent_assets * 0.6))
+
         # Process Buys
         for ctx in signals_context:
             if ctx['action'] == TradeAction.BUY:
                 tranches_count = ctx.get('tranches_count', 0)
+                code = ctx['code']
                 
                 # Check slot limit for NEW positions
                 if tranches_count == 0:
                     if current_active_holdings >= self.max_concurrent_assets:
                         import logging
                         logging.getLogger(__name__).info(
-                            f"[{ctx['code']}] Skipped BUY (Slot Limit Reached: {current_active_holdings}/{self.max_concurrent_assets})"
+                            f"[{code}] Skipped BUY (Slot Limit Reached: {current_active_holdings}/{self.max_concurrent_assets})"
                         )
                         continue
                         
+                    # 行业集中度控制 (Industry Concentration Control)
+                    is_etf = ctx.get('is_etf', False)
+                    sector = "ETF" if is_etf or code.startswith(('SH.5', 'SZ.1')) else "STOCK"
+                    if sector_exposure.get(sector, 0) >= max_assets_per_sector:
+                        import logging
+                        logging.getLogger(__name__).info(
+                            f"[{code}] Skipped BUY (Sector '{sector}' Limit Reached: {sector_exposure.get(sector, 0)}/{max_assets_per_sector})"
+                        )
+                        continue
+
                 is_etf = ctx.get('is_etf', False)
                 if is_etf:
                     # 根据市场设置不同首仓比例（仅限 ETF）
